@@ -772,6 +772,63 @@ class _SplayTreeMapEntryIterator<K, V>
 /// [Comparable], and are compared using their [Comparable.compareTo] method.
 /// Non-comparable objects (including `null`) will not work as an element
 /// in that case.
+///
+/// Example:
+/// ```dart
+/// final SplayTreeSet splayTreeSet = SplayTreeSet();
+/// splayTreeSet.addAll({'C', 'D', 'A', 'B'});
+/// splayTreeSet.isEmpty; // false
+/// splayTreeSet.length; // 4
+/// print(splayTreeSet); // {A, B, C, D}
+///
+/// splayTreeSet.contains('B'); // true
+/// final String elementAt = splayTreeSet.elementAt(1); // B
+/// print(elementAt); // B
+///
+/// // Convert set to list
+/// final toList = splayTreeSet.toList();
+/// print(toList); // [A, B, C, D]
+/// // Make a copy of set
+/// final copyOfOriginal = splayTreeSet.toSet();
+/// print(copyOfOriginal.runtimeType); // SplayTreeSet
+/// splayTreeSet.remove('A');
+/// print(splayTreeSet); // {B, C, D}
+///
+/// splayTreeSet.forEach((element) {
+///   print(element);
+/// });
+///
+/// splayTreeSet.removeWhere((element) => element.contains('B'));
+/// print(splayTreeSet); // {C, D}
+///
+/// splayTreeSet.add('E');
+/// print(splayTreeSet); // {C, D, E}
+///
+/// splayTreeSet.retainWhere((element) => element.contains('C'));
+/// print(splayTreeSet); // {C}
+/// splayTreeSet.clear();
+/// print(splayTreeSet); // {}
+/// ```
+///
+/// ## Constructor options for initialization:
+///
+/// ```dart
+/// final SplayTreeSet<String> baseSet = SplayTreeSet();
+/// baseSet.addAll({'C', 'B', 'A'});
+///
+/// // Using SplayTreeSet.from()
+/// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
+///
+/// // Notice! SplayTreeSet.from() causes runtime error if type not match
+/// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
+///
+/// // Using SplayTreeSet.of()
+/// final SplayTreeSet setOf = SplayTreeSet.of(baseSet);
+/// print(setOf); // {A, C, B}
+///
+/// // SplayTreeSet.of() causes build time error if type mismatch
+/// final SplayTreeSet<int> customSet = SplayTreeSet.of(baseSet);
+/// ```
 class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
     with IterableMixin<E>, SetMixin<E> {
   _SplayTreeSetNode<E>? _root;
