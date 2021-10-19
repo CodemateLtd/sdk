@@ -310,6 +310,101 @@ Comparator<K> _defaultCompare<K>() {
 /// using the `compare` function on an argument value that may not be a [K]
 /// value. If omitted, the `isValidKey` function defaults to testing if the
 /// value is a [K].
+///
+/// SplayTreeMap is sorted using key values
+///
+/// Example:
+///
+/// ```dart
+/// final SplayTreeMap<int, String> splayTreeMap = SplayTreeMap<int, String>();
+/// splayTreeMap.addAll({1: 'A', 4: 'D', 2: 'B', 3: 'C'});
+/// ```
+///
+/// Check is the map empty:
+/// ```dart
+/// print(splayTreeMap.isEmpty); // false
+/// print(splayTreeMap.length); // 4
+/// print(splayTreeMap); // {1: A, 2: B, 3: C, 4: D}
+/// ```
+///
+/// The [forEach] iterates through all entries of a map.
+///
+/// Manipulating item count in [forEach] is prohibited. Adding or
+/// deleting items during iteration causes an exception:
+/// _"Concurrent modification during iteration"_.
+/// ```dart
+/// splayTreeMap.forEach((key, value) {
+///   print('$key $value');
+///   // key: 1 value: A
+///   // key: 2 value: B
+///   // key: 3 value: C
+///   // key: 4 value: D
+/// });
+/// ```
+/// Check is key defined:
+/// ```dart
+/// print(splayTreeMap.containsKey(1)); // true
+/// print(splayTreeMap.containsKey(5)); // false
+/// ```
+/// Check is value defined:
+/// ```dart
+/// print(splayTreeMap.containsValue('B')); // true
+/// print(splayTreeMap.containsValue('b')); // false
+/// ```
+/// Remove item if provided key exists:
+/// ```dart
+/// splayTreeMap.remove(1);
+/// ```
+/// Remove item using [removeWhere] with a statement:
+/// ```dart
+/// splayTreeMap.removeWhere((key, value) => key == 2);
+/// splayTreeMap.removeWhere((key, value) => value == 'C');
+/// print(splayTreeMap); // {4: D}
+/// ```
+/// Update or insert (adding new key-value pair if not exists) value:
+/// ```dart
+/// splayTreeMap.update(10, (v) => 'ABC', ifAbsent: () => 'E');
+/// print(splayTreeMap); // {4: D, 10: E}
+/// splayTreeMap.update(4, (v) => 'abc', ifAbsent: () => 'F');
+/// print(splayTreeMap); // {4: abc, 10: E}
+/// ```
+/// Update all items using [updateAll]:
+/// ```dart
+/// splayTreeMap.updateAll((int key, String value) => 'X');
+/// print(splayTreeMap); // {4: X, 10: X}
+/// ```
+/// Use [clear] to remove all items:
+/// ```dart
+/// splayTreeMap.clear(); // {}
+/// ```
+///
+/// ## Constructor options for initialization:
+///
+/// [SplayTreeMap.from] example:
+/// ```dart
+/// final Map baseMap = {1: 'A', 2: 'B', 3: 'C'};
+/// final SplayTreeMap<int, String> fromBaseMap = SplayTreeMap.from(baseMap);
+/// ```
+///
+/// [SplayTreeMap.fromIterable] example:
+/// ```dart
+/// final List<int> keyList = [11, 12, 13, 14];
+/// final SplayTreeMap mapFromIterable =
+///   SplayTreeMap.fromIterable(keyList, key: (i) => i, value: (i) => i * i);
+/// ```
+///
+/// [SplayTreeMap.fromIterables] example:
+/// ```dart
+/// final List<String> keys = ['1', '2', '3', '4'];
+/// final List<String> values = ['A', 'B', 'C', 'D'];
+/// final SplayTreeMap mapFromIterables = SplayTreeMap.fromIterables(keys, values);
+/// ```
+///
+/// [SplayTreeMap.of] example:
+/// ```dart
+/// final Map mapIntString = {3: 'A', 2: 'B', 1: 'C', 4: 'D'};
+/// final SplayTreeMap mapOf = SplayTreeMap.of(mapIntString);
+/// ```
 class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
     with MapMixin<K, V> {
   _SplayTreeMapNode<K, V>? _root;
