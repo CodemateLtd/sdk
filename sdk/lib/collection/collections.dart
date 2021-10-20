@@ -8,6 +8,18 @@ part of dart.collection;
 ///
 /// The source of the elements may be a [List] or any [Iterable] with
 /// efficient [Iterable.length] and [Iterable.elementAt].
+///
+/// Example:
+/// ```dart
+/// final List numList = [1, 2, 3];
+/// final UnmodifiableListView unmodifiableListView =
+///     UnmodifiableListView(numList);
+/// ```
+///
+/// __Notice:__ Changes to the content are prohibited.
+/// Methods that could change the list, such as [add] and [remove],
+/// must not be called. The content edit event throws an exception:
+/// _"Unsupported operation: ..."_
 class UnmodifiableListView<E> extends UnmodifiableListBase<E> {
   final Iterable<E> _source;
 
