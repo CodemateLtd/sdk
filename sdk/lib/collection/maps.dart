@@ -200,7 +200,7 @@ abstract class MapMixin<K, V> implements Map<K, V> {
 /// Basic implementation of an unmodifiable [Map].
 ///
 /// This class has a basic implementation of all but two of the members of
-/// an umodifiable [Map].
+/// an unmodifiable [Map].
 /// A simple unmodifiable `Map` class can be implemented by extending this
 /// class and implementing `keys` and `operator[]`.
 ///
