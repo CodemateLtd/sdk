@@ -398,8 +398,17 @@ class _UnmodifiableSet<E> extends _SetBase<E> with _UnmodifiableSetMixin<E> {
 
 /// An unmodifiable [Set] view of another [Set].
 ///
+/// Example:
+/// ```dart
+/// final HashSet baseSet = HashSet()..addAll({'A', 'B', 'C'});
+/// final UnmodifiableSetView unmodifiableSetView =
+///     UnmodifiableSetView(baseSet);
+/// ```
+///
+/// __Notice:__ Changes to the content are prohibited.
 /// Methods that could change the set, such as [add] and [remove],
-/// must not be called.
+/// must not be called. The content edit event throws an exception:
+/// _"Unsupported operation: ..."_
 @Since("2.12")
 class UnmodifiableSetView<E> extends SetBase<E> with _UnmodifiableSetMixin<E> {
   final Set<E> _source;
