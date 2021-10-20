@@ -375,7 +375,17 @@ class MapView<K, V> implements Map<K, V> {
 ///
 /// A wrapper around a `Map` that forwards all members to the map provided in
 /// the constructor, except for operations that modify the map.
-/// Modifying operations throw instead.
+///
+/// Example:
+/// ```dart
+/// final Map map = {'1': 'A', '2': 'B', '3': 'C'};
+/// final UnmodifiableMapView unmodifiableMapView = UnmodifiableMapView(map);
+/// ```
+///
+/// __Notice:__ Changes to the content are prohibited.
+/// Methods that could change the map, such as [add] and [remove],
+/// must not be called. The content edit event throws an exception:
+/// _"Unsupported operation: ..."_
 class UnmodifiableMapView<K, V> extends MapView<K, V>
     with _UnmodifiableMapMixin<K, V> {
   UnmodifiableMapView(Map<K, V> map) : super(map);
