@@ -408,7 +408,7 @@ class _UnmodifiableSet<E> extends _SetBase<E> with _UnmodifiableSetMixin<E> {
 /// __Notice:__ Changes to the content are prohibited.
 /// Methods that could change the set, such as [add] and [remove],
 /// must not be called. The content edit event throws an exception:
-/// _"Unsupported operation: ..."_
+/// _"Unsupported operation: Cannot change an unmodifiable set"_
 @Since("2.12")
 class UnmodifiableSetView<E> extends SetBase<E> with _UnmodifiableSetMixin<E> {
   final Set<E> _source;
