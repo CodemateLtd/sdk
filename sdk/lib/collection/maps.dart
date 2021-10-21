@@ -382,10 +382,10 @@ class MapView<K, V> implements Map<K, V> {
 /// final UnmodifiableMapView unmodifiableMapView = UnmodifiableMapView(map);
 /// ```
 ///
-/// __Notice:__ Changes to the content are prohibited.
-/// Methods that could change the map, such as [add] and [remove],
+/// __Notice:__ Changes to the content are not supported.
+/// Methods that could change the map, such as [addEntries] and [remove],
 /// must not be called. The content edit event throws an exception:
-/// _"Unsupported operation: ..."_
+/// _"Unsupported operation: Cannot modify unmodifiable map"_
 class UnmodifiableMapView<K, V> extends MapView<K, V>
     with _UnmodifiableMapMixin<K, V> {
   UnmodifiableMapView(Map<K, V> map) : super(map);

@@ -16,7 +16,7 @@ part of dart.collection;
 ///     UnmodifiableListView(numList);
 /// ```
 ///
-/// __Notice:__ Changes to the content are prohibited.
+/// __Notice:__ Changes to the content are not supported.
 /// Methods that could change the list, such as [add] and [remove],
 /// must not be called. The content edit event throws an exception:
 /// _"Unsupported operation: ..."_
