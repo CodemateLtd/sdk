@@ -773,39 +773,61 @@ class _SplayTreeMapEntryIterator<K, V>
 /// Non-comparable objects (including `null`) will not work as an element
 /// in that case.
 ///
-/// Example:
+/// Example of usage:
 /// ```dart
 /// final SplayTreeSet splayTreeSet = SplayTreeSet();
 /// splayTreeSet.addAll({'C', 'D', 'A', 'B'});
 /// splayTreeSet.isEmpty; // false
 /// splayTreeSet.length; // 4
 /// print(splayTreeSet); // {A, B, C, D}
-///
-/// splayTreeSet.contains('B'); // true
+/// ```
+/// To check is there a value item on map, call [contains]:
+/// ```dart
+/// final bool bExists = splayTreeSet.contains('B'); // true
+///  ```
+/// To get element value using index, call [elementAt]:
+/// ```dart
 /// final String elementAt = splayTreeSet.elementAt(1); // B
 /// print(elementAt); // B
-///
-/// // Convert set to list
-/// final toList = splayTreeSet.toList();
-/// print(toList); // [A, B, C, D]
-/// // Make a copy of set
-/// final copyOfOriginal = splayTreeSet.toSet();
-/// print(copyOfOriginal.runtimeType); // SplayTreeSet
-/// splayTreeSet.remove('A');
-/// print(splayTreeSet); // {B, C, D}
-///
+/// ```
+/// The [forEach] iterates through all entries of a set.
+/// Manipulating item count in [forEach] is prohibited. Adding or
+/// deleting items during iteration causes an exception:
+/// _"Concurrent modification during iteration"_.
+/// ```dart
 /// splayTreeSet.forEach((element) {
 ///   print(element);
 /// });
-///
-/// splayTreeSet.removeWhere((element) => element.contains('B'));
-/// print(splayTreeSet); // {C, D}
-///
+/// ```
+/// To convert set to list, call [toList]:
+/// ```dart
+/// final toList = splayTreeSet.toList();
+/// print(toList); // [A, B, C, D]
+/// ```
+/// To make a copy of set, call [toSet]:
+/// ```dart
+/// final copyOfOriginal = splayTreeSet.toSet();
+/// splayTreeSet.remove('A');
+/// print(splayTreeSet); // {B, C, D}
+/// ```
+/// To add item to set, call [add]:
+/// ```dart
 /// splayTreeSet.add('E');
 /// print(splayTreeSet); // {C, D, E}
-///
+/// ```
+/// To remove value(s) with a statement, call the [removeWhere]:
+/// ```dart
+/// splayTreeSet.removeWhere((element) => element.contains('B'));
+/// print(splayTreeSet); // {C, D}
+/// ```
+/// To remove other values than those which match statement,
+/// call [retainWhere]:
+/// ```dart
 /// splayTreeSet.retainWhere((element) => element.contains('C'));
 /// print(splayTreeSet); // {C}
+/// ```
+/// To clean up data, call the [clear]:
+/// ```dart
 /// splayTreeSet.clear();
 /// print(splayTreeSet); // {}
 /// ```
