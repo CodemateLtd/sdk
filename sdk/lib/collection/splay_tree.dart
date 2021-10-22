@@ -311,15 +311,13 @@ Comparator<K> _defaultCompare<K>() {
 /// value. If omitted, the `isValidKey` function defaults to testing if the
 /// value is a [K].
 ///
-///
-/// Example of usage:
+/// Example:
 ///
 /// To add data to map, call [addAll] or [addEntries]:
 /// ```dart
 /// final SplayTreeMap<int, String> splayTreeMap = SplayTreeMap<int, String>();
 /// splayTreeMap.addAll({1: 'A', 4: 'D', 2: 'B', 3: 'C'});
 /// ```
-///
 /// To check is the map empty, use [isEmpty] or [isNotEmpty].
 /// To check length of map data, use [length]:
 /// ```dart
@@ -327,7 +325,6 @@ Comparator<K> _defaultCompare<K>() {
 /// final int length = splayTreeMap.length; // 4
 /// print(splayTreeMap); // {1: A, 2: B, 3: C, 4: D}
 /// ```
-///
 /// The [forEach] iterates through all entries of a map.
 ///
 /// Manipulating item count in [forEach] is prohibited. Adding or
@@ -381,7 +378,6 @@ Comparator<K> _defaultCompare<K>() {
 /// splayTreeMap.clear();
 /// print(splayTreeMap); // {}
 /// ```
-///
 /// ## Constructor options for initialization:
 ///
 /// [SplayTreeMap.from] example:
@@ -389,21 +385,18 @@ Comparator<K> _defaultCompare<K>() {
 /// final Map baseMap = {1: 'A', 2: 'B', 3: 'C'};
 /// final SplayTreeMap<int, String> fromBaseMap = SplayTreeMap.from(baseMap);
 /// ```
-///
 /// [SplayTreeMap.fromIterable] example:
 /// ```dart
 /// final List<int> keyList = [11, 12, 13, 14];
 /// final SplayTreeMap mapFromIterable =
 ///   SplayTreeMap.fromIterable(keyList, key: (i) => i, value: (i) => i * i);
 /// ```
-///
 /// [SplayTreeMap.fromIterables] example:
 /// ```dart
 /// final List<String> keys = ['1', '2', '3', '4'];
 /// final List<String> values = ['A', 'B', 'C', 'D'];
 /// final SplayTreeMap mapFromIterables = SplayTreeMap.fromIterables(keys, values);
 /// ```
-///
 /// [SplayTreeMap.of] example:
 /// ```dart
 /// final Map mapIntString = {3: 'A', 2: 'B', 1: 'C', 4: 'D'};
