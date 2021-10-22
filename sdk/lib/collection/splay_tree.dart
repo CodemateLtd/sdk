@@ -773,7 +773,7 @@ class _SplayTreeMapEntryIterator<K, V>
 /// Non-comparable objects (including `null`) will not work as an element
 /// in that case.
 ///
-/// Example of usage:
+/// Example:
 /// ```dart
 /// final SplayTreeSet splayTreeSet = SplayTreeSet();
 /// splayTreeSet.addAll({'C', 'D', 'A', 'B'});
