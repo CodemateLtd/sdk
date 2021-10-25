@@ -837,16 +837,18 @@ class _SplayTreeMapEntryIterator<K, V>
 /// ```dart
 /// final SplayTreeSet<String> baseSet = SplayTreeSet();
 /// baseSet.addAll({'C', 'B', 'A'});
+/// ```
 ///
-/// // Using SplayTreeSet.from()
+/// [SplayTreeSet.from()] example:
+/// ```dart
 /// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
 ///
 /// // Notice! SplayTreeSet.from() causes runtime error if type not match
 /// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
-///
-/// // Using SplayTreeSet.of()
+/// ```
+/// [SplayTreeSet.of()] example:
+/// ```dart
 /// final SplayTreeSet setOf = SplayTreeSet.of(baseSet);
-/// print(setOf); // {A, C, B}
 ///
 /// // SplayTreeSet.of() causes build time error if type mismatch
 /// final SplayTreeSet<int> customSet = SplayTreeSet.of(baseSet);
