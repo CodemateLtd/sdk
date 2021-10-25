@@ -782,6 +782,9 @@ class _SplayTreeMapEntryIterator<K, V>
 /// print(splayTreeSet); // {A, B, C, D}
 /// ```
 /// To check is there a value item on map, call [contains]:
+///
+/// test test test 123
+///
 /// ```dart
 /// final bool bExists = splayTreeSet.contains('B'); // true
 ///  ```
