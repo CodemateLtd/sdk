@@ -316,7 +316,7 @@ Comparator<K> _defaultCompare<K>() {
 /// To add data to map, call [addAll] or [addEntries]:
 /// ```dart
 /// final SplayTreeMap<int, String> splayTreeMap = SplayTreeMap<int, String>();
-/// splayTreeMap.addAll({1: 'A', 4: 'D', 2: 'B', 3: 'C'});
+/// splayTreeMap.addAll({1: 'A', 2: 'B', 3: 'C', 4: 'D'});
 /// ```
 /// To check is the map empty, use [isEmpty] or [isNotEmpty].
 /// To check length of map data, use [length]:
@@ -347,7 +347,7 @@ Comparator<K> _defaultCompare<K>() {
 /// To check is there a value item on map, call [containsValue]:
 /// ```dart
 /// final bExists = splayTreeMap.containsValue('B'); // true
-/// final cExists =  splayTreeMap.containsValue('c'); // false
+/// final gExists = splayTreeMap.containsValue('G'); // false
 /// ```
 /// To remove specific key-pair using key, call [remove]:
 /// ```dart
