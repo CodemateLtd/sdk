@@ -797,6 +797,10 @@ class _SplayTreeMapEntryIterator<K, V>
 /// ```dart
 /// splayTreeSet.forEach((element) {
 ///   print(element);
+///   // A
+///   // B
+///   // C
+///   // D
 /// });
 /// ```
 /// To convert set to list, call [toList]:
