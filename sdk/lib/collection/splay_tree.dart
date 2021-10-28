@@ -773,6 +773,11 @@ class _SplayTreeMapEntryIterator<K, V>
 /// Non-comparable objects (including `null`) will not work as an element
 /// in that case.
 ///
+/// The [forEach] iterates through all entries of a set.
+/// Manipulating item count in [forEach] is prohibited. Adding or
+/// deleting items during iteration causes an exception:
+/// _"Concurrent modification during iteration"_.
+///
 /// Example:
 /// ```dart
 /// final SplayTreeSet splayTreeSet = SplayTreeSet();
@@ -780,21 +785,15 @@ class _SplayTreeMapEntryIterator<K, V>
 /// splayTreeSet.isEmpty; // false
 /// splayTreeSet.length; // 4
 /// print(splayTreeSet); // {A, B, C, D}
-/// ```
-/// To check is there a value item on map, call [contains]:
-/// ```dart
+///
+/// // To check is there a value item on map, call contains
 /// final bool bExists = splayTreeSet.contains('B'); // true
-///  ```
-/// To get element value using index, call [elementAt]:
-/// ```dart
+///
+/// // To get element value using index, call elementAt
 /// final String elementAt = splayTreeSet.elementAt(1); // B
 /// print(elementAt); // B
-/// ```
-/// The [forEach] iterates through all entries of a set.
-/// Manipulating item count in [forEach] is prohibited. Adding or
-/// deleting items during iteration causes an exception:
-/// _"Concurrent modification during iteration"_.
-/// ```dart
+///
+/// // The forEach iterates through all entries of a set.
 /// splayTreeSet.forEach((element) {
 ///   print(element);
 ///   // A
@@ -802,60 +801,50 @@ class _SplayTreeMapEntryIterator<K, V>
 ///   // C
 ///   // D
 /// });
-/// ```
-/// To convert set to list, call [toList]:
-/// ```dart
+///
+/// // To convert set to list, call toList
 /// final toList = splayTreeSet.toList();
 /// print(toList); // [A, B, C, D]
-/// ```
-/// To make a copy of set, call [toSet]:
-/// ```dart
+///
+/// // To make a copy of set, call toSet
 /// final copyOfOriginal = splayTreeSet.toSet();
+/// print(copyOfOriginal); // {A, B, C, D}
+///
+/// // To remove item from set, call remove
 /// splayTreeSet.remove('A');
 /// print(splayTreeSet); // {B, C, D}
-/// ```
-/// To add item to set, call [add]:
-/// ```dart
+///
+/// // To add item to set, call add
 /// splayTreeSet.add('E');
-/// print(splayTreeSet); // {C, D, E}
-/// ```
-/// To remove value(s) with a statement, call the [removeWhere]:
-/// ```dart
+/// print(splayTreeSet); // {B, C, D, E}
+///
+/// // To remove value(s) with a statement, call removeWhere
 /// splayTreeSet.removeWhere((element) => element.contains('B'));
-/// print(splayTreeSet); // {C, D}
-/// ```
-/// To remove other values than those which match statement,
-/// call [retainWhere]:
-/// ```dart
+/// print(splayTreeSet); // {C, D, E}
+///
+/// // To remove other values than those which match statement,
+/// // call retainWhere
 /// splayTreeSet.retainWhere((element) => element.contains('C'));
 /// print(splayTreeSet); // {C}
-/// ```
-/// To clean up data, call the [clear]:
-/// ```dart
+///
+/// // To clean up data, call clear
 /// splayTreeSet.clear();
 /// print(splayTreeSet); // {}
 /// ```
 ///
-/// ## Constructor options for initialization:
-///
-/// ```dart
-/// final SplayTreeSet<String> baseSet = SplayTreeSet();
-/// baseSet.addAll({'C', 'B', 'A'});
-/// ```
+/// ## Constructor options for initialization
 ///
 /// [SplayTreeSet.from()] example:
 /// ```dart
-/// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
-///
-/// // Notice! SplayTreeSet.from() causes runtime error if type not match
-/// final SplayTreeSet<int> setFrom = SplayTreeSet.from(baseSet);
+/// final SplayTreeSet<String> baseSet = SplayTreeSet();
+/// baseSet.addAll({'A', 'B', 'C'});
+/// final SplayTreeSet setFrom = SplayTreeSet.from(baseSet);
 /// ```
 /// [SplayTreeSet.of()] example:
 /// ```dart
+/// final SplayTreeSet<String> baseSet = SplayTreeSet();
+/// baseSet.addAll({'A', 'B', 'C'});
 /// final SplayTreeSet setOf = SplayTreeSet.of(baseSet);
-///
-/// // SplayTreeSet.of() causes build time error if type mismatch
-/// final SplayTreeSet<int> customSet = SplayTreeSet.of(baseSet);
 /// ```
 class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
     with IterableMixin<E>, SetMixin<E> {
