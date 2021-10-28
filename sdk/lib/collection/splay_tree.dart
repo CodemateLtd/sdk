@@ -311,74 +311,67 @@ Comparator<K> _defaultCompare<K>() {
 /// value. If omitted, the `isValidKey` function defaults to testing if the
 /// value is a [K].
 ///
+/// **Notice:** Manipulating item count in [forEach] is prohibited. Adding or
+/// deleting items during iteration causes an exception:
+/// _"Concurrent modification during iteration"_.
+///
 /// Example:
 ///
-/// To add data to map, call [addAll] or [addEntries]:
 /// ```dart
 /// final SplayTreeMap<int, String> splayTreeMap = SplayTreeMap<int, String>();
+///
+/// // To add data to map, call addAll or addEntries
 /// splayTreeMap.addAll({1: 'A', 2: 'B', 3: 'C', 4: 'D'});
-/// ```
-/// To check is the map empty, use [isEmpty] or [isNotEmpty].
-/// To check length of map data, use [length]:
-/// ```dart
+///
+/// // To check is the map empty, use isEmpty or isNotEmpty.
+/// // To check length of map data, use length
 /// final bool isEmpty = splayTreeMap.isEmpty; // false
 /// final int length = splayTreeMap.length; // 4
 /// print(splayTreeMap); // {1: A, 2: B, 3: C, 4: D}
-/// ```
-/// The [forEach] iterates through all entries of a map.
 ///
-/// Manipulating item count in [forEach] is prohibited. Adding or
-/// deleting items during iteration causes an exception:
-/// _"Concurrent modification during iteration"_.
-/// ```dart
+/// // The forEach iterates through all entries of a map.
 /// splayTreeMap.forEach((key, value) {
-///   print('$key $value');
+///   print('key: $key value: $value');
 ///   // key: 1 value: A
 ///   // key: 2 value: B
 ///   // key: 3 value: C
 ///   // key: 4 value: D
 /// });
-/// ```
-/// To check is there a defined key, call [containsKey]:
-/// ```dart
+///
+/// // To check is there a defined key, call containsKey
 /// final keyOneExists = splayTreeMap.containsKey(1); // true
 /// final keyFiveExists = splayTreeMap.containsKey(5); // false
-/// ```
-/// To check is there a value item on map, call [containsValue]:
-/// ```dart
+///
+/// // To check is there a value item on map, call containsValue
 /// final bExists = splayTreeMap.containsValue('B'); // true
 /// final gExists = splayTreeMap.containsValue('G'); // false
-/// ```
-/// To remove specific key-pair using key, call [remove]:
-/// ```dart
+///
+/// // To remove specific key-pair using key, call remove
 /// splayTreeMap.remove(1);
 /// print(splayTreeMap); // {2: B, 3: C, 4: D}
-/// ```
-/// To remove item(s) with a statement, call the [removeWhere]:
-/// ```dart
+///
+/// // To remove item(s) with a statement, call removeWhere
 /// splayTreeMap.removeWhere((key, value) => key == 2);
 /// splayTreeMap.removeWhere((key, value) => value == 'C');
 /// print(splayTreeMap); // {4: D}
-/// ```
-/// To update or insert (adding new key-value pair if not exists) value,
-/// call [update] method with ifAbsent statement or call [putIfAbsent]:
-/// ```dart
+///
+/// // To update or insert (adding new key-value pair if not exists) value,
+/// // call update method with ifAbsent statement or call putIfAbsent
 /// splayTreeMap.update(10, (v) => 'ABC', ifAbsent: () => 'E');
 /// print(splayTreeMap); // {4: D, 10: E}
 /// splayTreeMap.update(4, (v) => 'abc', ifAbsent: () => 'F');
 /// print(splayTreeMap); // {4: abc, 10: E}
-/// ```
-/// To update all items, call [updateAll]:
-/// ```dart
+///
+/// // To update all items, call updateAll
 /// splayTreeMap.updateAll((int key, String value) => 'X');
 /// print(splayTreeMap); // {4: X, 10: X}
-/// ```
-/// To clean up data, call the [clear]:
-/// ```dart
+///
+/// // To clean up data, call clear
 /// splayTreeMap.clear();
 /// print(splayTreeMap); // {}
 /// ```
-/// ## Constructor options for initialization:
+///
+/// ## Constructor options for initialization
 ///
 /// [SplayTreeMap.from] example:
 /// ```dart
