@@ -8,6 +8,37 @@
 /// ```dart
 /// import 'dart:collection';
 /// ```
+///
+/// ## List
+/// An indexable collection of objects, objects can be accessed via index
+/// of list. [List] is also called as an "array" on other languages.
+///
+/// ## Map
+/// A collection of key/value pairs, from which you retrieve a value
+/// using its associated key. [Map] is a base class for functionality,
+/// customized functionalities are for example:
+/// * [HashMap] is unordered (no order is guaranteed)
+/// * [LinkedHashMap] iterates in key insertion order
+/// * [SplayTreeMap] iterates the keys in sorted order
+/// * [UnmodifiableMapView] list type where items modification is not allowed
+///
+/// ## Set
+/// A collection of objects in which each object can occur only once.
+/// [Set] is a base class for functionality, customized functionalities
+/// are for example:
+/// * [HashSet] is unordered, which means that its iteration order is
+///   unspecified
+/// * [LinkedHashSet] iterates in the insertion order of its elements
+/// * [SplayTreeSet] iterates the elements in sorted order
+/// * [UnmodifiableSetView] set type where items modification is not allowed
+///
+/// ## Queue
+/// A queue is a collection that can be manipulated at both ends.
+/// No access to objects data via index, access to fist and last items.
+/// * [Queue] is a base class for queue. [ListQueue] is returned.
+/// * [ListQueue] is a list based an queue.
+/// * [DoubleLinkedQueue] is a queue implementation based on a
+///   double-linked list.
 /// {@category Core}
 library dart.collection;
 
