@@ -10,13 +10,13 @@
 /// ```
 ///
 /// ## List
-/// An indexable collection of objects, objects can be accessed via index
-/// of list. [List] is also called as an "array" on other languages.
+/// An indexable collection of objects, objects can be accessed through index
+/// of list. [List] is also called as an "array" on other programming languages.
 ///
 /// ## Map
-/// A collection of key/value pairs, from which you retrieve a value
-/// using its associated key. [Map] is a base class for functionality,
-/// customized functionalities are for example:
+/// A collection of key/value pairs, from which to retrieve a value
+/// using the associated key. [Map] is a base class of functionality,
+/// custom functionalities are for example:
 /// * [HashMap] is unordered (no order is guaranteed)
 /// * [LinkedHashMap] iterates in key insertion order
 /// * [SplayTreeMap] iterates the keys in sorted order
@@ -24,7 +24,7 @@
 ///
 /// ## Set
 /// A collection of objects in which each object can occur only once.
-/// [Set] is a base class for functionality, customized functionalities
+/// [Set] is a base class of functionality, customized functionalities
 /// are for example:
 /// * [HashSet] is unordered, which means that its iteration order is
 ///   unspecified
@@ -33,10 +33,10 @@
 /// * [UnmodifiableSetView] set type where items modification is not allowed
 ///
 /// ## Queue
-/// A queue is a collection that can be manipulated at both ends.
-/// No access to objects data via index, access to fist and last items.
+/// A queue is a collection that can be processed at both ends.
+/// No access to object data through the index, access to fist and last object.
 /// * [Queue] is a base class for queue. [ListQueue] is returned.
-/// * [ListQueue] is a list based an queue.
+/// * [ListQueue] is a queue-based list.
 /// * [DoubleLinkedQueue] is a queue implementation based on a
 ///   double-linked list.
 /// {@category Core}
