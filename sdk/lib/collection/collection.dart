@@ -39,6 +39,11 @@
 /// * [ListQueue] is a queue-based list.
 /// * [DoubleLinkedQueue] is a queue implementation based on a
 ///   double-linked list.
+///
+/// ## LinkedList
+/// [LinkedList] is a specialized double-linked list of elements that extends
+/// [LinkedListEntry]. Each element knows its place in the linked list and
+/// in which list it is.
 /// {@category Core}
 library dart.collection;
 
