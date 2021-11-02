@@ -304,7 +304,7 @@ class _Base64Encoder {
   /// Returns a [Uint8List] of the ASCII codes of the encoded data.
   ///
   /// If the input, including left over [_state] from earlier encodings,
-  /// are not a multiple of three bytes, then the partial state is stored
+  /// is not a multiple of three bytes, then the partial state is stored
   /// back into [_state].
   /// If [isLast] is true, partial state is encoded in the output instead,
   /// with the necessary padding.
@@ -749,7 +749,7 @@ class _Base64Decoder {
   /// it needs when input is valid, and at least enough bytes to reach the error
   /// when input is invalid.
   ///
-  /// Never count more than two padding sequences since any more than that
+  /// Never count more than two padding sequences as any more than that
   /// will raise an error anyway, and we only care about being precise for
   /// successful conversions.
   static int _trimPaddingChars(String input, int start, int end) {
@@ -800,7 +800,7 @@ class _Base64Decoder {
   /// only call this function after having seen at least one `=` or `%`
   /// character.
   /// If the number of missing characters is not 3 or 0, we have seen (at least)
-  /// a `%` character and expects the rest of the `%3D` sequence, and a `=` is
+  /// a `%` character and expect the rest of the `%3D` sequence, and a `=` is
   /// not allowed. When missing 3 characters, either `=` or `%` is allowed.
   ///
   /// When the value is 0, no more padding (or any other character) is allowed.
