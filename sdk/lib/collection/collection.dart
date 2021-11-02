@@ -20,7 +20,7 @@
 /// * [HashMap] is unordered (no order is guaranteed)
 /// * [LinkedHashMap] iterates in key insertion order
 /// * [SplayTreeMap] iterates the keys in sorted order
-/// * [UnmodifiableMapView] list type where items modification is not allowed
+/// * [UnmodifiableMapView] map type where items modification is not allowed
 ///
 /// ## Set
 /// A collection of objects in which each object can occur only once.
@@ -34,7 +34,7 @@
 ///
 /// ## Queue
 /// A queue is a collection that can be processed at both ends.
-/// No access to object data through the index, access to fist and last object.
+/// No access to object data through the index, access to first and last object.
 /// * [Queue] is a base class for queue. [ListQueue] is returned.
 /// * [ListQueue] is a queue-based list.
 /// * [DoubleLinkedQueue] is a queue implementation based on a
