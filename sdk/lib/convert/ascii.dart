@@ -35,7 +35,7 @@ class AsciiCodec extends Encoding {
   /// Encoders will not accept invalid (non ASCII) characters.
   const AsciiCodec({bool allowInvalid = false}) : _allowInvalid = allowInvalid;
 
-  /// The name of this codec, "us-ascii".
+  /// The name of this codec is "us-ascii".
   String get name => "us-ascii";
 
   Uint8List encode(String source) => encoder.convert(source);
