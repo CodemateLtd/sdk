@@ -40,7 +40,7 @@ class Utf8Codec extends Encoding {
   const Utf8Codec({bool allowMalformed = false})
       : _allowMalformed = allowMalformed;
 
-  /// The name of this codec, "utf-8".
+  /// The name of this codec is "utf-8".
   String get name => "utf-8";
 
   /// Decodes the UTF-8 [codeUnits] (a list of unsigned 8-bit integers) to the
@@ -49,7 +49,7 @@ class Utf8Codec extends Encoding {
   /// If the [codeUnits] start with the encoding of a
   /// [unicodeBomCharacterRune], that character is discarded.
   ///
-  /// If [allowMalformed] is `true` the decoder replaces invalid (or
+  /// If [allowMalformed] is `true`, the decoder replaces invalid (or
   /// unterminated) character sequences with the Unicode Replacement character
   /// `U+FFFD` (�). Otherwise it throws a [FormatException].
   ///
@@ -156,10 +156,10 @@ class _Utf8Encoder {
   /// writes it to [_buffer].
   ///
   /// Returns true if the [nextCodeUnit] was combined with the
-  /// [leadingSurrogate]. If it wasn't then nextCodeUnit was not a trailing
+  /// [leadingSurrogate]. If it wasn't, then nextCodeUnit was not a trailing
   /// surrogate and has not been written yet.
   ///
-  /// It is safe to pass 0 for [nextCodeUnit] in which case a replacement
+  /// It is safe to pass 0 for [nextCodeUnit], in which case a replacement
   /// character is written to represent the unpaired lead surrogate.
   bool _writeSurrogate(int leadingSurrogate, int nextCodeUnit) {
     if (_isTailSurrogate(nextCodeUnit)) {
@@ -326,7 +326,7 @@ class Utf8Decoder extends Converter<List<int>, String> {
   /// The optional [allowMalformed] argument defines how [convert] deals
   /// with invalid or unterminated character sequences.
   ///
-  /// If it is `true` [convert] replaces invalid (or unterminated) character
+  /// If it is `true`, [convert] replaces invalid (or unterminated) character
   /// sequences with the Unicode Replacement character `U+FFFD` (�). Otherwise
   /// it throws a [FormatException].
   const Utf8Decoder({bool allowMalformed = false})
@@ -335,7 +335,7 @@ class Utf8Decoder extends Converter<List<int>, String> {
   /// Converts the UTF-8 [codeUnits] (a list of unsigned 8-bit integers) to the
   /// corresponding string.
   ///
-  /// Uses the code units from [start] to, but no including, [end].
+  /// Uses the code units from [start] to, but not including, [end].
   /// If [end] is omitted, it defaults to `codeUnits.length`.
   ///
   /// If the [codeUnits] start with the encoding of a
