@@ -28,7 +28,7 @@ const int _CR = 13;
 /// final List<String> sampleTextLines = ls.convert(sampleText);
 /// for (var i = 0; i < sampleTextLines.length; i++) {
 ///   print('$i: ${sampleTextLines[i]}');
-/// }
+///  }
 /// // 0: Dart is:
 /// // 1:  an object-oriented
 /// // 2:  class-based
