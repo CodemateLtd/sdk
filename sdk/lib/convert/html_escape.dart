@@ -19,6 +19,8 @@ part of dart.convert;
 /// it's possible to omit escaping some characters (like quotes when not
 /// inside an attribute value).
 ///
+/// THIS IS A TEST
+///
 /// The escaped text should only be used inside quoted HTML attributes values
 /// or as text content of a normal element. Using the escaped text inside a
 /// tag, but not inside a quoted attribute value, is still dangerous.
