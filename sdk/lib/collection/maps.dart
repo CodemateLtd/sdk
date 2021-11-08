@@ -378,8 +378,8 @@ class MapView<K, V> implements Map<K, V> {
 ///
 /// Example:
 /// ```dart
-/// final Map map = {'1': 'A', '2': 'B', '3': 'C'};
-/// final UnmodifiableMapView unmodifiableMapView = UnmodifiableMapView(map);
+/// final map = {'1': 'A', '2': 'B', '3': 'C'};
+/// final unmodifiableMapView = UnmodifiableMapView(map);
 /// ```
 ///
 /// __Notice:__ Changes to the content are not supported.

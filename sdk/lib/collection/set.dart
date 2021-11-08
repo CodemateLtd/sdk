@@ -400,8 +400,8 @@ class _UnmodifiableSet<E> extends _SetBase<E> with _UnmodifiableSetMixin<E> {
 ///
 /// Example:
 /// ```dart
-/// final HashSet baseSet = HashSet()..addAll({'A', 'B', 'C'});
-/// final UnmodifiableSetView unmodifiableSetView =
+/// final baseSet = HashSet()..addAll({'A', 'B', 'C'});
+/// final unmodifiableSetView =
 ///     UnmodifiableSetView(baseSet);
 /// ```
 ///
