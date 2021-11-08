@@ -776,7 +776,7 @@ class _SplayTreeMapEntryIterator<K, V>
 /// The [forEach] iterates through all entries of a set.
 /// Manipulating item count in [forEach] is prohibited. Adding or
 /// deleting items during iteration causes an exception:
-/// _"Concurrent modification during iteration"_.
+/// [ConcurrentModificationError].
 ///
 /// Example:
 /// ```dart
@@ -787,10 +787,10 @@ class _SplayTreeMapEntryIterator<K, V>
 /// print(splayTreeSet); // {A, B, C, D}
 ///
 /// // To check is there a value item on map, call contains
-/// final bool bExists = splayTreeSet.contains('B'); // true
+/// final bExists = splayTreeSet.contains('B'); // true
 ///
 /// // To get element value using index, call elementAt
-/// final String elementAt = splayTreeSet.elementAt(1); // B
+/// final elementAt = splayTreeSet.elementAt(1); // B
 /// print(elementAt); // B
 ///
 /// // The forEach iterates through all entries of a set.
@@ -811,7 +811,7 @@ class _SplayTreeMapEntryIterator<K, V>
 /// print(copyOfOriginal); // {A, B, C, D}
 ///
 /// // To remove item from set, call remove
-/// splayTreeSet.remove('A');
+/// final removedValue = splayTreeSet.remove('A'); // A
 /// print(splayTreeSet); // {B, C, D}
 ///
 /// // To add item to set, call add
@@ -830,21 +830,6 @@ class _SplayTreeMapEntryIterator<K, V>
 /// // To clean up data, call clear
 /// splayTreeSet.clear();
 /// print(splayTreeSet); // {}
-/// ```
-///
-/// ## Constructor options for initialization
-///
-/// [SplayTreeSet.from()] example:
-/// ```dart
-/// final SplayTreeSet<String> baseSet = SplayTreeSet();
-/// baseSet.addAll({'A', 'B', 'C'});
-/// final SplayTreeSet setFrom = SplayTreeSet.from(baseSet);
-/// ```
-/// [SplayTreeSet.of()] example:
-/// ```dart
-/// final SplayTreeSet<String> baseSet = SplayTreeSet();
-/// baseSet.addAll({'A', 'B', 'C'});
-/// final SplayTreeSet setOf = SplayTreeSet.of(baseSet);
 /// ```
 class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
     with IterableMixin<E>, SetMixin<E> {
@@ -883,7 +868,7 @@ class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
 
   /// Creates a [SplayTreeSet] that contains all [elements].
   ///
-  /// The set works as if created by `new SplayTreeSet<E>(compare, isValidKey)`.
+  /// The set works as if created by `SplayTreeSet<E>(compare, isValidKey)`.
   ///
   /// All the [elements] should be instances of [E] and valid arguments to
   /// [compare].
@@ -893,6 +878,13 @@ class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
   /// Set<SuperType> superSet = ...;
   /// Set<SubType> subSet =
   ///     SplayTreeSet<SubType>.from(superSet.whereType<SubType>());
+  /// ```
+  /// Example:
+  /// ```dart
+  /// final baseSet = SplayTreeSet();
+  /// baseSet.addAll({'C', 'B', 'A'});
+  /// final setFrom = SplayTreeSet.from(baseSet);
+  /// print(setFrom); // {A, B, C}
   /// ```
   factory SplayTreeSet.from(Iterable elements,
       [int Function(E key1, E key2)? compare,
@@ -909,9 +901,16 @@ class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
 
   /// Creates a [SplayTreeSet] from [elements].
   ///
-  /// The set works as if created by `new SplayTreeSet<E>(compare, isValidKey)`.
+  /// The set works as if created by `SplayTreeSet<E>(compare, isValidKey)`.
   ///
   /// All the [elements] should be valid as arguments to the [compare] function.
+  /// Example:
+  /// ```dart
+  /// final baseSet = SplayTreeSet();
+  /// baseSet.addAll({'C', 'B', 'A'});
+  /// final setOf = SplayTreeSet.of(baseSet);
+  /// print(setOf); // {A, B, C}
+  /// ```
   factory SplayTreeSet.of(Iterable<E> elements,
           [int Function(E key1, E key2)? compare,
           bool Function(dynamic potentialKey)? isValidKey]) =>
