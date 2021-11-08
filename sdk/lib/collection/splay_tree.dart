@@ -313,7 +313,7 @@ Comparator<K> _defaultCompare<K>() {
 ///
 /// **Notice:** Manipulating item count in [forEach] is prohibited. Adding or
 /// deleting items during iteration causes an exception:
-/// _"Concurrent modification during iteration"_.
+/// [ConcurrentModificationError].
 ///
 /// Example:
 ///
@@ -325,8 +325,8 @@ Comparator<K> _defaultCompare<K>() {
 ///
 /// // To check is the map empty, use isEmpty or isNotEmpty.
 /// // To check length of map data, use length
-/// final bool isEmpty = splayTreeMap.isEmpty; // false
-/// final int length = splayTreeMap.length; // 4
+/// final isEmpty = splayTreeMap.isEmpty; // false
+/// final length = splayTreeMap.length; // 4
 /// print(splayTreeMap); // {1: A, 2: B, 3: C, 4: D}
 ///
 /// // The forEach iterates through all entries of a map.
@@ -347,7 +347,8 @@ Comparator<K> _defaultCompare<K>() {
 /// final gExists = splayTreeMap.containsValue('G'); // false
 ///
 /// // To remove specific key-pair using key, call remove
-/// splayTreeMap.remove(1);
+/// final removedValue = splayTreeMap.remove(1);
+/// print(removedValue); // A
 /// print(splayTreeMap); // {2: B, 3: C, 4: D}
 ///
 /// // To remove item(s) with a statement, call removeWhere
@@ -370,31 +371,6 @@ Comparator<K> _defaultCompare<K>() {
 /// splayTreeMap.clear();
 /// print(splayTreeMap); // {}
 /// ```
-///
-/// ## Constructor options for initialization
-///
-/// [SplayTreeMap.from] example:
-/// ```dart
-/// final Map baseMap = {1: 'A', 2: 'B', 3: 'C'};
-/// final SplayTreeMap<int, String> fromBaseMap = SplayTreeMap.from(baseMap);
-/// ```
-/// [SplayTreeMap.fromIterable] example:
-/// ```dart
-/// final List<int> keyList = [11, 12, 13, 14];
-/// final SplayTreeMap mapFromIterable =
-///   SplayTreeMap.fromIterable(keyList, key: (i) => i, value: (i) => i * i);
-/// ```
-/// [SplayTreeMap.fromIterables] example:
-/// ```dart
-/// final List<String> keys = ['1', '2', '3', '4'];
-/// final List<String> values = ['A', 'B', 'C', 'D'];
-/// final SplayTreeMap mapFromIterables = SplayTreeMap.fromIterables(keys, values);
-/// ```
-/// [SplayTreeMap.of] example:
-/// ```dart
-/// final Map mapIntString = {3: 'A', 2: 'B', 1: 'C', 4: 'D'};
-/// final SplayTreeMap mapOf = SplayTreeMap.of(mapIntString);
-/// ```
 class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
     with MapMixin<K, V> {
   _SplayTreeMapNode<K, V>? _root;
@@ -412,6 +388,12 @@ class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
   ///
   /// The keys must all be instances of [K] and the values of [V].
   /// The [other] map itself can have any type.
+  /// Example:
+  /// ```dart
+  /// final baseMap = {1: 'A', 2: 'B', 3: 'C'};
+  /// final fromBaseMap = SplayTreeMap.from(baseMap);
+  /// print(fromBaseMap); // {1: A, 2: B, 3: C}
+  /// ```
   factory SplayTreeMap.from(Map<dynamic, dynamic> other,
       [int Function(K key1, K key2)? compare,
       bool Function(dynamic potentialKey)? isValidKey]) {
@@ -426,6 +408,12 @@ class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
   }
 
   /// Creates a [SplayTreeMap] that contains all key/value pairs of [other].
+  /// Example:
+  /// ```dart
+  /// final baseMap = {3: 'A', 2: 'B', 1: 'C', 4: 'D'};
+  /// final mapOf = SplayTreeMap.of(baseMap);
+  /// print(mapOf); // {1: C, 2: B, 3: A, 4: D}
+  /// ```
   factory SplayTreeMap.of(Map<K, V> other,
           [int Function(K key1, K key2)? compare,
           bool Function(dynamic potentialKey)? isValidKey]) =>
@@ -442,6 +430,13 @@ class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
   ///
   /// If no functions are specified for [key] and [value] the default is to
   /// use the iterable value itself.
+  /// Example:
+  /// ```dart
+  /// final keyList = [11, 12, 13, 14];
+  /// final mapFromIterable =
+  ///   SplayTreeMap.fromIterable(keyList, key: (i) => i, value: (i) => i * i);
+  /// print(mapFromIterable); // {11: 121, 12: 144, 13: 169, 14: 196}
+  /// ```
   factory SplayTreeMap.fromIterable(Iterable iterable,
       {K Function(dynamic element)? key,
       V Function(dynamic element)? value,
@@ -461,6 +456,13 @@ class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
   /// overwrites the previous value.
   ///
   /// It is an error if the two [Iterable]s don't have the same length.
+  /// Example:
+  /// ```dart
+  /// final keys = ['1', '2', '3', '4'];
+  /// final values = ['A', 'B', 'C', 'D'];
+  /// final mapFromIterables = SplayTreeMap.fromIterables(keys, values);
+  /// print(mapFromIterables); // {1: A, 2: B, 3: C, 4: D}
+  /// ```
   factory SplayTreeMap.fromIterables(Iterable<K> keys, Iterable<V> values,
       [int Function(K key1, K key2)? compare,
       bool Function(dynamic potentialKey)? isValidKey]) {
