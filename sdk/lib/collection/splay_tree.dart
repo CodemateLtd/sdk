@@ -773,64 +773,73 @@ class _SplayTreeMapEntryIterator<K, V>
 /// Non-comparable objects (including `null`) will not work as an element
 /// in that case.
 ///
-/// The [forEach] iterates through all entries of a set.
-/// Manipulating item count in [forEach] is prohibited. Adding or
-/// deleting items during iteration causes an exception:
-/// [ConcurrentModificationError].
+/// It is generally not allowed to modify the set (add or remove elements) while
+/// an operation on the set is being performed, for example during a call to
+/// [forEach] or [containsAll]. Nor is it allowed to modify the set while
+/// iterating either the set itself or any [Iterable] that is backed by the set,
+/// such as the ones returned by methods like [where] and [map].
+///
+/// It is generally not allowed to modify the equality of elements (and thus not
+/// their hashcode) while they are in the set. Some specialized subtypes may be
+/// more permissive, in which case they should document this behavior.
 ///
 /// Example:
 /// ```dart
-/// final SplayTreeSet splayTreeSet = SplayTreeSet();
-/// splayTreeSet.addAll({'C', 'D', 'A', 'B'});
-/// splayTreeSet.isEmpty; // false
-/// splayTreeSet.length; // 4
-/// print(splayTreeSet); // {A, B, C, D}
+/// final planets = SplayTreeSet();
+/// planets.addAll({'Venus', 'Mars', 'Earth', 'Jupiter'});
+/// planets.isEmpty; // false
+/// planets.length; // 4
+/// print(planets); // {Earth, Jupiter, Mars, Venus}
 ///
 /// // To check is there a value item on map, call contains
-/// final bExists = splayTreeSet.contains('B'); // true
+/// final marsExists = planets.contains('Mars'); // true
 ///
 /// // To get element value using index, call elementAt
-/// final elementAt = splayTreeSet.elementAt(1); // B
-/// print(elementAt); // B
+/// final elementAt = planets.elementAt(1);
+/// print(elementAt); // Jupiter
 ///
 /// // The forEach iterates through all entries of a set.
-/// splayTreeSet.forEach((element) {
+/// planets.forEach((element) {
 ///   print(element);
-///   // A
-///   // B
-///   // C
-///   // D
+///   // Earth
+///   // Jupiter
+///   // Mars
+///   // Venus
 /// });
 ///
 /// // To convert set to list, call toList
-/// final toList = splayTreeSet.toList();
-/// print(toList); // [A, B, C, D]
+/// final toList = planets.toList();
+/// print(toList); // [Earth, Jupiter, Mars, Venus]
 ///
 /// // To make a copy of set, call toSet
-/// final copyOfOriginal = splayTreeSet.toSet();
-/// print(copyOfOriginal); // {A, B, C, D}
+/// final copyOfOriginal = planets.toSet();
+/// print(copyOfOriginal); // {Earth, Jupiter, Mars, Venus}
 ///
 /// // To remove item from set, call remove
-/// final removedValue = splayTreeSet.remove('A'); // A
-/// print(splayTreeSet); // {B, C, D}
+/// final removedValue = planets.remove('Mars'); // true
+/// print(planets); // {Earth, Jupiter, Venus}
 ///
 /// // To add item to set, call add
-/// splayTreeSet.add('E');
-/// print(splayTreeSet); // {B, C, D, E}
+/// bool addedValue = planets.add('Neptune'); // true
+/// print(planets); // {Earth, Jupiter, Neptune, Venus}
 ///
 /// // To remove value(s) with a statement, call removeWhere
-/// splayTreeSet.removeWhere((element) => element.contains('B'));
-/// print(splayTreeSet); // {C, D, E}
+/// planets.removeWhere((element) => element.contains('Jupiter'));
+/// print(planets); // {Earth, Neptune, Venus}
 ///
 /// // To remove other values than those which match statement,
 /// // call retainWhere
-/// splayTreeSet.retainWhere((element) => element.contains('C'));
-/// print(splayTreeSet); // {C}
+/// planets.retainWhere((element) => element.contains('Earth'));
+/// print(planets); // {Earth}
 ///
 /// // To clean up data, call clear
-/// splayTreeSet.clear();
-/// print(splayTreeSet); // {}
+/// planets.clear();
+/// print(planets); // {}
 /// ```
+/// **See also:**
+/// * [Set] is a base-class for collection of objects.
+/// * [HashSet] the order of the objects in the iterations is not guaranteed.
+/// * [LinkedHashSet] objects stored based on insertion order.
 class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
     with IterableMixin<E>, SetMixin<E> {
   _SplayTreeSetNode<E>? _root;
