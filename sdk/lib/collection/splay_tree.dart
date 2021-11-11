@@ -311,66 +311,76 @@ Comparator<K> _defaultCompare<K>() {
 /// value. If omitted, the `isValidKey` function defaults to testing if the
 /// value is a [K].
 ///
-/// **Notice:** Manipulating item count in [forEach] is prohibited. Adding or
-/// deleting items during iteration causes an exception:
-/// [ConcurrentModificationError].
+/// **Notice:**
+/// It is generally not allowed to modify the map (add or remove keys) while
+/// an operation is being performed on the map, for example in functions called
+/// during a [forEach] or [putIfAbsent] call.
+/// Modifying the map while iterating the keys or values
+/// may also break the iteration.
 ///
 /// Example:
 ///
 /// ```dart
-/// final SplayTreeMap<int, String> splayTreeMap = SplayTreeMap<int, String>();
+/// final mass = SplayTreeMap();
 ///
-/// // To add data to map, call addAll or addEntries
-/// splayTreeMap.addAll({1: 'A', 2: 'B', 3: 'C', 4: 'D'});
+/// // Add random data to map
+/// mass.addAll({ 0.06: 'Mercury', 0.81: 'Venus', 1: 'Earth', 0.11: 'Mars',
+///   317.83: 'Jupiter', 95.16: 'Saturn', 14.54: 'Uranus', 17.15: 'Neptune'});
 ///
 /// // To check is the map empty, use isEmpty or isNotEmpty.
 /// // To check length of map data, use length
-/// final isEmpty = splayTreeMap.isEmpty; // false
-/// final length = splayTreeMap.length; // 4
-/// print(splayTreeMap); // {1: A, 2: B, 3: C, 4: D}
+/// final isEmpty = mass.isEmpty; // false
+/// final length = mass.length; // 4
 ///
 /// // The forEach iterates through all entries of a map.
-/// splayTreeMap.forEach((key, value) {
+/// mass.forEach((key, value) {
 ///   print('key: $key value: $value');
-///   // key: 1 value: A
-///   // key: 2 value: B
-///   // key: 3 value: C
-///   // key: 4 value: D
+///   // key: 0.06 value: Mercury
+///   // key: 0.11 value: Mars
+///   // key: 0.81 value: Venus
+///   // key: 1 value: Earth
+///   // key: 14.54 value: Uranus
+///   // key: 17.15 value: Neptune
+///   // key: 95.16 value: Saturn
+///   // key: 317.83 value: Jupiter
 /// });
 ///
 /// // To check is there a defined key, call containsKey
-/// final keyOneExists = splayTreeMap.containsKey(1); // true
-/// final keyFiveExists = splayTreeMap.containsKey(5); // false
+/// final keyOneExists = mass.containsKey(1); // true
+/// final keyFiveExists = mass.containsKey(5); // false
 ///
 /// // To check is there a value item on map, call containsValue
-/// final bExists = splayTreeMap.containsValue('B'); // true
-/// final gExists = splayTreeMap.containsValue('G'); // false
+/// final earthExists = mass.containsValue('Earth'); // true
+/// final plutoExists = mass.containsValue('Pluto'); // false
 ///
 /// // To remove specific key-pair using key, call remove
-/// final removedValue = splayTreeMap.remove(1);
-/// print(removedValue); // A
-/// print(splayTreeMap); // {2: B, 3: C, 4: D}
+/// final removedValue = mass.remove(1);
+/// print(removedValue); // Earth
 ///
 /// // To remove item(s) with a statement, call removeWhere
-/// splayTreeMap.removeWhere((key, value) => key == 2);
-/// splayTreeMap.removeWhere((key, value) => value == 'C');
-/// print(splayTreeMap); // {4: D}
+/// mass.removeWhere((key, value) => key <= 1);
+/// print(mass);
+/// // {14.54: Uranus, 17.15: Neptune, 95.16: Saturn, 317.83: Jupiter}
 ///
 /// // To update or insert (adding new key-value pair if not exists) value,
 /// // call update method with ifAbsent statement or call putIfAbsent
-/// splayTreeMap.update(10, (v) => 'ABC', ifAbsent: () => 'E');
-/// print(splayTreeMap); // {4: D, 10: E}
-/// splayTreeMap.update(4, (v) => 'abc', ifAbsent: () => 'F');
-/// print(splayTreeMap); // {4: abc, 10: E}
+/// mass.update(1, (v) => '', ifAbsent: () => 'Earth');
+/// print(mass);
+/// // {1: Earth, 14.54: Uranus, 17.15: Neptune, 95.16: Saturn, 317.83: Jupiter}
 ///
 /// // To update all items, call updateAll
-/// splayTreeMap.updateAll((int key, String value) => 'X');
-/// print(splayTreeMap); // {4: X, 10: X}
+/// mass.updateAll((key,value) => null);
+/// print(mass);
+/// // {1: null, 14.54: null, 17.15: null, 95.16: null, 317.83: null}
 ///
 /// // To clean up data, call clear
-/// splayTreeMap.clear();
-/// print(splayTreeMap); // {}
+/// mass.clear();
+/// print(mass); // {}
 /// ```
+/// **See also:**
+/// * [Map] a base-class for key/value pair collection.
+/// * [HashMap] is unordered (the order of iteration is not guaranteed).
+/// * [LinkedHashMap] iterates in key insertion order.
 class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
     with MapMixin<K, V> {
   _SplayTreeMapNode<K, V>? _root;
