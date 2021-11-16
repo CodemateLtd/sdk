@@ -54,7 +54,7 @@ abstract class _SplayTree<K, Node extends _SplayTreeNode<K, Node>> {
   // Number of elements in the splay tree.
   int _count = 0;
 
-  /// Counter incremented whenever the keys in the map changes.
+  /// Counter incremented whenever the keys in the map change.
   ///
   /// Used to detect concurrent modifications.
   int _modificationCount = 0;
@@ -355,7 +355,7 @@ class SplayTreeMap<K, V> extends _SplayTree<K, _SplayTreeMapNode<K, V>>
   /// The keys of the key/value pairs do not need to be unique. The last
   /// occurrence of a key will simply overwrite any previous value.
   ///
-  /// If no functions are specified for [key] and [value] the default is to
+  /// If no functions are specified for [key] and [value], the default is to
   /// use the iterable value itself.
   factory SplayTreeMap.fromIterable(Iterable iterable,
       {K Function(dynamic element)? key,
@@ -791,7 +791,7 @@ class _SplayTreeMapEntryIterator<K, V>
 /// planets.length; // 4
 /// print(planets); // {Earth, Jupiter, Mars, Venus}
 ///
-/// // To check is there a value item on map, call contains
+/// // To check if there is a value item on map, call contains
 /// final marsExists = planets.contains('Mars'); // true
 ///
 /// // To get element value using index, call elementAt
@@ -827,7 +827,7 @@ class _SplayTreeMapEntryIterator<K, V>
 /// planets.removeWhere((element) => element.contains('Jupiter'));
 /// print(planets); // {Earth, Neptune, Venus}
 ///
-/// // To remove other values than those which match statement,
+/// // To remove values other than those which match statement,
 /// // call retainWhere
 /// planets.retainWhere((element) => element.contains('Earth'));
 /// print(planets); // {Earth}
@@ -856,7 +856,7 @@ class SplayTreeSet<E> extends _SplayTree<E, _SplayTreeSetNode<E>>
   /// work on all `E` instances.
   ///
   /// For operations that add elements to the set, the user is supposed to not
-  /// pass in objects that doesn't work with the compare function.
+  /// pass in objects that don't work with the compare function.
   ///
   /// The methods [contains], [remove], [lookup], [removeAll] or [retainAll]
   /// are typed to accept any object(s), and the [isValidKey] test can used to
