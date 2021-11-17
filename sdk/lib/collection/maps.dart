@@ -378,14 +378,13 @@ class MapView<K, V> implements Map<K, V> {
 ///
 /// Example:
 /// ```dart
-/// final map = {'1': 'A', '2': 'B', '3': 'C'};
+/// final map = {1: 'A', 2: 'B', 3: 'C'};
 /// final unmodifiableMapView = UnmodifiableMapView(map);
 /// ```
 ///
-/// __Notice:__ Changes to the content are not supported.
-/// Methods that could change the map, such as [addEntries] and [remove],
-/// must not be called. The content edit event throws an exception:
-/// _"Unsupported operation: Cannot modify unmodifiable map"_
+/// **Note:** Changes to the content are not supported.
+/// Methods that could change the map, such as [addEntries] and [remove], must
+/// not be called. Throws an [UnsupportedError] if content edit method is called.
 class UnmodifiableMapView<K, V> extends MapView<K, V>
     with _UnmodifiableMapMixin<K, V> {
   UnmodifiableMapView(Map<K, V> map) : super(map);
