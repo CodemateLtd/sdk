@@ -319,18 +319,17 @@ Comparator<K> _defaultCompare<K>() {
 /// may also break the iteration.
 ///
 /// Example:
-///
 /// ```dart
 /// final mass = SplayTreeMap();
 ///
 /// // Add random data to map
 /// mass.addAll({ 0.06: 'Mercury', 0.81: 'Venus', 1: 'Earth', 0.11: 'Mars',
-///   317.83: 'Jupiter', 95.16: 'Saturn', 14.54: 'Uranus', 17.15: 'Neptune'});
+///   317.83: 'Jupiter'});
 ///
-/// // To check is the map empty, use isEmpty or isNotEmpty.
+/// // To check if the map is empty, use isEmpty or isNotEmpty.
 /// // To check length of map data, use length
 /// final isEmpty = mass.isEmpty; // false
-/// final length = mass.length; // 4
+/// final length = mass.length; // 5
 ///
 /// // The forEach iterates through all entries of a map.
 /// mass.forEach((key, value) {
@@ -339,9 +338,6 @@ Comparator<K> _defaultCompare<K>() {
 ///   // key: 0.11 value: Mars
 ///   // key: 0.81 value: Venus
 ///   // key: 1 value: Earth
-///   // key: 14.54 value: Uranus
-///   // key: 17.15 value: Neptune
-///   // key: 95.16 value: Saturn
 ///   // key: 317.83 value: Jupiter
 /// });
 ///
@@ -359,19 +355,16 @@ Comparator<K> _defaultCompare<K>() {
 ///
 /// // To remove item(s) with a statement, call removeWhere
 /// mass.removeWhere((key, value) => key <= 1);
-/// print(mass);
-/// // {14.54: Uranus, 17.15: Neptune, 95.16: Saturn, 317.83: Jupiter}
+/// print(mass); // {317.83: Jupiter}
 ///
 /// // To update or insert (adding new key-value pair if not exists) value,
 /// // call update method with ifAbsent statement or call putIfAbsent
 /// mass.update(1, (v) => '', ifAbsent: () => 'Earth');
-/// print(mass);
-/// // {1: Earth, 14.54: Uranus, 17.15: Neptune, 95.16: Saturn, 317.83: Jupiter}
+/// print(mass); // {1: Earth, 317.83: Jupiter}
 ///
 /// // To update all items, call updateAll
 /// mass.updateAll((key,value) => null);
-/// print(mass);
-/// // {1: null, 14.54: null, 17.15: null, 95.16: null, 317.83: null}
+/// print(mass); // {1: null, 317.83: null}
 ///
 /// // To clean up data, call clear
 /// mass.clear();
