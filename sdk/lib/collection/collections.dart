@@ -11,9 +11,9 @@ part of dart.collection;
 ///
 /// Example:
 /// ```dart
-/// final numList = [1, 2, 3];
+/// final numbers = [1, 2, 3];
 /// final unmodifiableListView =
-///     UnmodifiableListView(numList);
+///     UnmodifiableListView(numbers);
 /// ```
 ///
 /// **Note:** Changes to the content are not supported.
