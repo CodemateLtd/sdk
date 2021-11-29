@@ -11,12 +11,12 @@
 ///
 /// ## List
 /// An indexable collection of objects, objects can be accessed through index
-/// of list. [List] is also called as an "array" on other programming languages.
+/// of list. [List] is also called an "array" in other programming languages.
 ///
 /// ## Map
 /// A collection of key/value pairs, from which to retrieve a value
-/// using the associated key. [Map] is a base class of functionality,
-/// custom functionalities are for example:
+/// using the associated key. [Map] is a base class of functionality;
+/// custom functionalities are, for example:
 /// * [HashMap] is unordered (no order is guaranteed)
 /// * [LinkedHashMap] iterates in key insertion order
 /// * [SplayTreeMap] iterates the keys in sorted order
@@ -25,12 +25,12 @@
 /// ## Set
 /// A collection of objects in which each object can occur only once.
 /// [Set] is a base class of functionality, customized functionalities
-/// are for example:
+/// are, for example:
 /// * [HashSet] is unordered, which means that its iteration order is
 ///   unspecified
 /// * [LinkedHashSet] iterates in the insertion order of its elements
 /// * [SplayTreeSet] iterates the elements in sorted order
-/// * [UnmodifiableSetView] set type where items modification is not allowed
+/// * [UnmodifiableSetView] set type where item's modification is not allowed
 ///
 /// ## Queue
 /// A queue is a collection that can be processed at both ends.
