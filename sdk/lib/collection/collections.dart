@@ -9,16 +9,22 @@ part of dart.collection;
 /// The source of the elements may be a [List] or any [Iterable] with
 /// efficient [Iterable.length] and [Iterable.elementAt].
 ///
-/// Example:
-/// ```dart
-/// final numbers = [1, 2, 3];
-/// final unmodifiableListView =
-///     UnmodifiableListView(numbers);
-/// ```
-///
 /// **Note:** Changes to the content are not supported.
 /// Methods that could change the list, such as [add] and [remove], must not be
 /// called. Throws an [UnsupportedError] if content edit method is called.
+///
+/// Example:
+/// ```dart
+/// final numbers = <int>[10, 20, 30];
+/// final unmodifiableListView = UnmodifiableListView(numbers);
+///
+/// // Add new element to the original list.
+/// numbers.addAll([50]);
+/// print(unmodifiableListView); // [10, 20, 30, 50]
+///
+/// // Throws an error if the content editing event is called.
+/// unmodifiableListView.remove(20); // Error is thrown.
+/// ```
 class UnmodifiableListView<E> extends UnmodifiableListBase<E> {
   final Iterable<E> _source;
 

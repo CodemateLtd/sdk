@@ -376,15 +376,21 @@ class MapView<K, V> implements Map<K, V> {
 /// A wrapper around a `Map` that forwards all members to the map provided in
 /// the constructor, except for operations that modify the map.
 ///
-/// Example:
-/// ```dart
-/// final map = {1: 'A', 2: 'B', 3: 'C'};
-/// final unmodifiableMapView = UnmodifiableMapView(map);
-/// ```
-///
 /// **Note:** Changes to the content are not supported.
 /// Methods that could change the map, such as [addEntries] and [remove], must
 /// not be called. Throws an [UnsupportedError] if content edit method is called.
+///
+/// ```dart
+/// final baseMap = <int, String>{1: 'Mars', 2: 'Mercury', 3: 'Venus'};
+/// final unmodifiableMapView = UnmodifiableMapView(baseMap);
+///
+/// // Remove an element from the original map.
+/// baseMap.remove(3);
+/// print(unmodifiableMapView); // {1: Mars, 2: Mercury}
+///
+/// // Throws an error if the content editing event is called.
+/// unmodifiableMapView.remove(1); // Error is thrown.
+/// ```
 class UnmodifiableMapView<K, V> extends MapView<K, V>
     with _UnmodifiableMapMixin<K, V> {
   UnmodifiableMapView(Map<K, V> map) : super(map);

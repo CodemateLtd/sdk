@@ -398,16 +398,22 @@ class _UnmodifiableSet<E> extends _SetBase<E> with _UnmodifiableSetMixin<E> {
 
 /// An unmodifiable [Set] view of another [Set].
 ///
-/// Example:
-/// ```dart
-/// final baseSet = {'A', 'B', 'C'};
-/// final unmodifiableSetView =
-///     UnmodifiableSetView(baseSet);
-/// ```
-///
 ///**Note:** Changes to the content are not supported.
 /// Methods that could change the set, such as [add] and [remove], must not
 /// be called. Throws an [UnsupportedError] if content edit method is called.
+///
+/// Example:
+/// ```dart
+/// final baseSet = <String>{'Mars', 'Mercury', 'Earth', 'Venus'};
+/// final unmodifiableSetView = UnmodifiableSetView(baseSet);
+///
+/// // Remove an element from the original set.
+/// baseSet.remove('Venus');
+/// print(unmodifiableSetView); // {Mars, Mercury, Earth}
+///
+/// // Throws an error if the content editing event is called.
+/// unmodifiableSetView.remove('Earth'); // Error is thrown.
+/// ```
 @Since("2.12")
 class UnmodifiableSetView<E> extends SetBase<E> with _UnmodifiableSetMixin<E> {
   final Set<E> _source;
