@@ -76,15 +76,15 @@ abstract class Match {
   /// final string = '[00:13.37] This is a chat message.';
   /// final regExp = RegExp(r'^\[([0-9]+):([0-9]+)\.([0-9]+)\](.*)$');
   /// final match = regExp.firstMatch(string);
-  /// final message = match.group(0);
+  /// final message = match?.group(0);
   /// print(message); // [00:13.37] This is a chat message.
-  /// final hours = match.group(1);
+  /// final hours = match?.group(1);
   /// print(hours); // 00
-  /// final minutes = match.group(2);
+  /// final minutes = match?.group(2);
   /// print(minutes); // 13
-  /// final seconds = match.group(3);
+  /// final seconds = match?.group(3);
   /// print(seconds); // 37
-  /// final text = match.group(4);
+  /// final text = match?.group(4);
   /// print(text); // This is a chat message.
   /// ```
   String? group(int group);
@@ -101,11 +101,11 @@ abstract class Match {
   /// The list contains the strings returned by [group] for each index in
   /// [groupIndices].
   /// ```dart
-  ///   final string = '[00:13.37] This is a chat message.';
-  ///   final regExp = RegExp(r'^\[([0-9]+):([0-9]+)\.([0-9]+)\](.*)$');
-  ///   final match = regExp.firstMatch(string);
-  ///   final message = match.groups([1,2,3,4]);
-  ///   print(message); // [00, 13, 37,  This is a chat message.]
+  /// final string = '[00:13.37] This is a chat message.';
+  /// final regExp = RegExp(r'^\[([0-9]+):([0-9]+)\.([0-9]+)\](.*)$');
+  /// final match = regExp.firstMatch(string);
+  /// final message = match?.groups([1,2,3,4]);
+  /// print(message); // [00, 13, 37,  This is a chat message.]
   /// ```
   List<String?> groups(List<int> groupIndices);
 
