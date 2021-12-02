@@ -41,10 +41,10 @@ abstract class Pattern {
 /// The following example finds all matches of a [RegExp] in a [String]
 /// and iterates through the returned iterable of `Match` objects.
 /// ```dart
-/// final regExp = RegExp(r"(\w+)");
+/// final regExp = RegExp(r'(\w+)');
 /// const string = 'Parse my string';
 /// final matches = regExp.allMatches(string);
-/// for (final Match m in matches) {
+/// for (final m in matches) {
 ///   String match = m[0]!;
 ///   print(match);
 /// }
@@ -76,16 +76,11 @@ abstract class Match {
   /// final string = '[00:13.37] This is a chat message.';
   /// final regExp = RegExp(r'^\[([0-9]+):([0-9]+)\.([0-9]+)\](.*)$');
   /// final match = regExp.firstMatch(string);
-  /// final message = match?.group(0);
-  /// print(message); // [00:13.37] This is a chat message.
-  /// final hours = match?.group(1);
-  /// print(hours); // 00
-  /// final minutes = match?.group(2);
-  /// print(minutes); // 13
-  /// final seconds = match?.group(3);
-  /// print(seconds); // 37
-  /// final text = match?.group(4);
-  /// print(text); // This is a chat message.
+  /// final message = match?.group(0); // [00:13.37] This is a chat message.
+  /// final hours = match?.group(1); // 00
+  /// final minutes = match?.group(2); // 13
+  /// final seconds = match?.group(3); // 37
+  /// final text = match?.group(4); // This is a chat message.
   /// ```
   String? group(int group);
 
@@ -104,8 +99,7 @@ abstract class Match {
   /// final string = '[00:13.37] This is a chat message.';
   /// final regExp = RegExp(r'^\[([0-9]+):([0-9]+)\.([0-9]+)\](.*)$');
   /// final match = regExp.firstMatch(string);
-  /// final message = match?.groups([1,2,3,4]);
-  /// print(message); // [00, 13, 37,  This is a chat message.]
+  /// final message = match?.groups([1,2,3,4]); // [00, 13, 37,  This is a chat message.]
   /// ```
   List<String?> groups(List<int> groupIndices);
 
