@@ -412,7 +412,7 @@ class _UnmodifiableSet<E> extends _SetBase<E> with _UnmodifiableSetMixin<E> {
 /// print(unmodifiableSetView); // {Mars, Mercury, Earth}
 ///
 /// // Throws an error if the content editing event is called.
-/// unmodifiableSetView.remove('Earth'); // Error is thrown.
+/// unmodifiableSetView.remove('Earth'); // Throws.
 /// ```
 @Since("2.12")
 class UnmodifiableSetView<E> extends SetBase<E> with _UnmodifiableSetMixin<E> {

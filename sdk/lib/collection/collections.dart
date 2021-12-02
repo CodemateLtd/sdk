@@ -23,7 +23,7 @@ part of dart.collection;
 /// print(unmodifiableListView); // [10, 20, 30, 50]
 ///
 /// // Throws an error if the content editing event is called.
-/// unmodifiableListView.remove(20); // Error is thrown.
+/// unmodifiableListView.remove(20); // Throws.
 /// ```
 class UnmodifiableListView<E> extends UnmodifiableListBase<E> {
   final Iterable<E> _source;

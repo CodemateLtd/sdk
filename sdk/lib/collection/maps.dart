@@ -389,7 +389,7 @@ class MapView<K, V> implements Map<K, V> {
 /// print(unmodifiableMapView); // {1: Mars, 2: Mercury}
 ///
 /// // Throws an error if the content editing event is called.
-/// unmodifiableMapView.remove(1); // Error is thrown.
+/// unmodifiableMapView.remove(1); // Throws.
 /// ```
 class UnmodifiableMapView<K, V> extends MapView<K, V>
     with _UnmodifiableMapMixin<K, V> {
