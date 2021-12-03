@@ -26,7 +26,7 @@ abstract class Pattern {
   ///
   /// Returns a match if the pattern matches a substring of [string]
   /// starting at [start], and `null` if the pattern doesn't match
-  /// a that point.
+  /// at that point.
   ///
   /// The [start] must be non-negative and no greater than `string.length`.
   Match? matchAsPrefix(String string, [int start = 0]);
