@@ -743,7 +743,7 @@ abstract class String implements Comparable<String>, Pattern {
 ///
 /// For example, the Unicode character for a Family emoji ('👨‍👩‍👦'), combines:
 /// * Man ('👨', U+1F468),
-/// * Women ('👩', U+1F469) and
+/// * Woman ('👩', U+1F469) and
 /// * Boy ('👦', U+1F466).
 ///
 /// Zero Width Joiner (U+200D) is a Unicode character that joins two or more
@@ -762,7 +762,7 @@ abstract class String implements Comparable<String>, Pattern {
 ///   print(item.toRadixString(16));
 ///   // 1f468 // Man
 ///   // 200d // Zero Width Joiner
-///   // 1f469 // Women
+///   // 1f469 // Woman
 ///   // 200d // Zero Width Joiner
 ///   // 1f466 // Boy
 /// }
