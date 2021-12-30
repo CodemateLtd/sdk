@@ -198,7 +198,7 @@ abstract class String implements Comparable<String>, Pattern {
   /// The length of the string.
   ///
   /// Returns the number of UTF-16 code units in this string. The number
-  /// of [runes] might be fewer, if the string contains characters outside
+  /// of [runes] might be fewer if the string contains characters outside
   /// the Basic Multilingual Plane (plane 0):
   /// ```dart
   /// 'Dart'.length;          // 4
@@ -346,7 +346,7 @@ abstract class String implements Comparable<String>, Pattern {
   /// result = string.substring(1, 4); // 'art'
   /// ```
   ///
-  /// Both [start] and [end] must be non-negative and no greater than [length], and
+  /// Both [start] and [end] must be non-negative and no greater than [length];
   /// [end], if provided, must be greater than or equal to [start].
   String substring(int start, [int? end]);
 
@@ -741,7 +741,7 @@ abstract class String implements Comparable<String>, Pattern {
 /// composed of a surrogate pair, runes combines the pair and returns a
 /// single integer.
 ///
-/// For example, the Unicode character for a Family emoji ('👨‍👩‍👦'), combines:
+/// For example, the Unicode character for a Family emoji ('👨‍👩‍👦') combines:
 /// * Man ('👨', U+1F468),
 /// * Woman ('👩', U+1F469) and
 /// * Boy ('👦', U+1F466).
