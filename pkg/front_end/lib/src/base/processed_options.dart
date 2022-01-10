@@ -8,6 +8,8 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
 
+import 'package:_fe_analyzer_shared/src/macros/executor.dart';
+
 import 'package:_fe_analyzer_shared/src/util/libraries_specification.dart'
     show
         LibrariesSpecification,
@@ -531,12 +533,10 @@ class ProcessedOptions {
       return new TargetLibrariesSpecification(name);
     }
 
-    String json = await fileSystem
-        .entityForUri(librariesSpecificationUri!)
-        .readAsString();
     try {
-      LibrariesSpecification spec =
-          await LibrariesSpecification.parse(librariesSpecificationUri!, json);
+      LibrariesSpecification spec = await LibrariesSpecification.load(
+          librariesSpecificationUri!,
+          (Uri uri) => fileSystem.entityForUri(uri).readAsString());
       return spec.specificationFor(name);
     } on LibrariesSpecificationException catch (e) {
       reportWithoutLocation(
@@ -853,6 +853,9 @@ class ProcessedOptions {
       return null;
     }
   }
+
+  Future<MacroExecutor> Function() get macroExecutorProvider =>
+      _raw.macroExecutorProvider;
 
   CompilerOptions get rawOptionsForTesting => _raw;
 }

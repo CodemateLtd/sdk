@@ -1,18 +1,32 @@
+## 2.17.0
+
+### Core libraries
+
+#### `dart:core`
+
+- Add `Finalizer` and `WeakReference` which can potentially detect when
+  objects are "garbage collected".
+
 ## 2.16.0
 
 ### Core libraries
 
 #### `dart:core`
 
-- **Breaking Change** [#47653](https://github.com/dart-lang/sdk/issues/47653):
-  On Windows, `Directory.rename` will no longer delete a directory if
-  `newPath` specifies one. Instead, a `FileSystemException` will be thrown.
-
 - Add `Error.throwWithStackTrace` which can `throw` an
   error with an existing stack trace, instead of creating
   a new stack trace.
 
+#### `dart:indexed_db`
+
+- `IdbFactory.supportsDatabaseNames` has been deprecated. It will always return
+  `false`.
+
 #### `dart:io`
+
+- **Breaking Change** [#47653](https://github.com/dart-lang/sdk/issues/47653):
+On Windows, `Directory.rename` will no longer delete a directory if
+`newPath` specifies one. Instead, a `FileSystemException` will be thrown.
 
 - **Breaking Change** [#47769](https://github.com/dart-lang/sdk/issues/47769):
 The `Platform.packageRoot` API has been removed. It had been marked deprecated

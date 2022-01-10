@@ -3,15 +3,19 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
-
+import 'package:_fe_analyzer_shared/src/macros/api.dart';
+import 'package:_fe_analyzer_shared/src/macros/executor.dart';
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
-
 import 'package:_fe_analyzer_shared/src/testing/features.dart';
+import 'package:front_end/src/api_prototype/compiler_options.dart';
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
+import 'package:front_end/src/fasta/builder/class_builder.dart';
+import 'package:front_end/src/fasta/builder/library_builder.dart';
+import 'package:front_end/src/fasta/builder/member_builder.dart';
 import 'package:front_end/src/fasta/kernel/macro.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
-import 'package:kernel/ast.dart';
+import 'package:kernel/ast.dart' hide Arguments;
 
 Future<void> main(List<String> args) async {
   enableMacros = true;
@@ -22,45 +26,47 @@ Future<void> main(List<String> args) async {
       args: args,
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
-      runTest: runTestFor(const MacroDataComputer(), [
-        new TestConfig(cfeMarker, 'cfe',
+      runTest: runTestFor(const MacroDataComputer(), [new MacroTestConfig()]));
+}
+
+class MacroTestConfig extends TestConfig {
+  MacroTestConfig()
+      : super(cfeMarker, 'cfe',
             explicitExperimentalFlags: {ExperimentalFlag.macros: true},
             packageConfigUri:
-                Platform.script.resolve('data/package_config.json'))
-      ]));
+                Platform.script.resolve('data/package_config.json'));
+
+  @override
+  TestMacroExecutor customizeCompilerOptions(
+      CompilerOptions options, TestData testData) {
+    TestMacroExecutor macroExecutor = new TestMacroExecutor();
+    options.macroExecutorProvider = () async => macroExecutor;
+    return macroExecutor;
+  }
 }
 
 class MacroDataComputer extends DataComputer<Features> {
   const MacroDataComputer();
 
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
-    member.accept(new MacroDataExtractor(compilerResult, actualMap));
+    member.accept(new MacroDataExtractor(testResultData, actualMap));
   }
 
   @override
-  void computeClassData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Class cls,
+  void computeClassData(TestResultData testResultData, Class cls,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
-    new MacroDataExtractor(compilerResult, actualMap).computeForClass(cls);
+    new MacroDataExtractor(testResultData, actualMap).computeForClass(cls);
   }
 
   @override
-  void computeLibraryData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Library library,
+  void computeLibraryData(TestResultData testResultData, Library library,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
-    new MacroDataExtractor(compilerResult, actualMap)
+    new MacroDataExtractor(testResultData, actualMap)
         .computeForLibrary(library);
   }
 
@@ -75,6 +81,8 @@ class Tags {
   static const String compilationSequence = 'compilationSequence';
   static const String declaredMacros = 'declaredMacros';
   static const String appliedMacros = 'appliedMacros';
+  static const String macroClassIds = 'macroClassIds';
+  static const String macroInstanceIds = 'macroInstanceIds';
 }
 
 String importUriToString(Uri importUri) {
@@ -96,31 +104,41 @@ String strongComponentToString(Iterable<Uri> uris) {
 }
 
 class MacroDataExtractor extends CfeDataExtractor<Features> {
+  final TestResultData testResultData;
   late final MacroDeclarationData macroDeclarationData;
   late final MacroApplicationData macroApplicationData;
 
-  MacroDataExtractor(InternalCompilerResult compilerResult,
-      Map<Id, ActualData<Features>> actualMap)
-      : super(compilerResult, actualMap) {
-    macroDeclarationData = compilerResult
-        .kernelTargetForTesting!.loader.dataForTesting!.macroDeclarationData;
-    macroApplicationData = compilerResult
-        .kernelTargetForTesting!.loader.dataForTesting!.macroApplicationData;
+  MacroDataExtractor(
+      this.testResultData, Map<Id, ActualData<Features>> actualMap)
+      : super(testResultData.compilerResult, actualMap) {
+    macroDeclarationData = testResultData.compilerResult.kernelTargetForTesting!
+        .loader.dataForTesting!.macroDeclarationData;
+    macroApplicationData = testResultData.compilerResult.kernelTargetForTesting!
+        .loader.dataForTesting!.macroApplicationData;
   }
+
+  TestMacroExecutor get macroExecutor => testResultData.customData;
 
   LibraryMacroApplicationData? getLibraryMacroApplicationData(Library library) {
-    return macroApplicationData.libraryData[library];
-  }
-
-  MacroApplications? getLibraryMacroApplications(Library library) {
-    return getLibraryMacroApplicationData(library)?.libraryApplications;
+    for (MapEntry<LibraryBuilder, LibraryMacroApplicationData> entry
+        in macroApplicationData.libraryData.entries) {
+      if (entry.key.library == library) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 
   ClassMacroApplicationData? getClassMacroApplicationData(Class cls) {
     LibraryMacroApplicationData? applicationData =
         getLibraryMacroApplicationData(cls.enclosingLibrary);
     if (applicationData != null) {
-      return applicationData.classData[cls];
+      for (MapEntry<ClassBuilder, ClassMacroApplicationData> entry
+          in applicationData.classData.entries) {
+        if (entry.key.cls == cls) {
+          return entry.value;
+        }
+      }
     }
     return null;
   }
@@ -131,20 +149,36 @@ class MacroDataExtractor extends CfeDataExtractor<Features> {
 
   MacroApplications? getMemberMacroApplications(Member member) {
     Class? enclosingClass = member.enclosingClass;
+    Map<MemberBuilder, MacroApplications>? memberApplications;
     if (enclosingClass != null) {
-      return getClassMacroApplicationData(enclosingClass)
-          ?.memberApplications[member];
+      memberApplications =
+          getClassMacroApplicationData(enclosingClass)?.memberApplications;
     } else {
-      return getLibraryMacroApplicationData(member.enclosingLibrary)
-          ?.memberApplications[member];
+      memberApplications =
+          getLibraryMacroApplicationData(member.enclosingLibrary)
+              ?.memberApplications;
     }
+    if (memberApplications != null) {
+      for (MapEntry<MemberBuilder, MacroApplications> entry
+          in memberApplications.entries) {
+        if (entry.key.member == member) {
+          return entry.value;
+        }
+      }
+    }
+    return null;
   }
 
   void registerMacroApplications(
       Features features, MacroApplications? macroApplications) {
     if (macroApplications != null) {
-      for (Class cls in macroApplications.macros) {
-        features.addElement(Tags.appliedMacros, cls.name);
+      for (MacroApplication application in macroApplications.macros) {
+        String className = application.classBuilder.name;
+        String constructorName = application.constructorName == ''
+            ? 'new'
+            : application.constructorName;
+        features.addElement(
+            Tags.appliedMacros, '${className}.${constructorName}');
       }
     }
   }
@@ -173,6 +207,12 @@ class MacroDataExtractor extends CfeDataExtractor<Features> {
               Tags.compilationSequence, strongComponentToString(component));
         }
       }
+      for (_MacroClassIdentifier id in macroExecutor.macroClasses) {
+        features.addElement(Tags.macroClassIds, id.toText());
+      }
+      for (_MacroInstanceIdentifier id in macroExecutor.macroInstances) {
+        features.addElement(Tags.macroInstanceIds, id.toText());
+      }
     }
     List<String>? macroClasses =
         macroDeclarationData.macroDeclarations[node.importUri];
@@ -184,7 +224,7 @@ class MacroDataExtractor extends CfeDataExtractor<Features> {
     if (getLibraryMacroApplicationData(node) != null) {
       features.add(Tags.macrosAreApplied);
     }
-    registerMacroApplications(features, getLibraryMacroApplications(node));
+
     return features;
   }
 
@@ -194,4 +234,100 @@ class MacroDataExtractor extends CfeDataExtractor<Features> {
     registerMacroApplications(features, getMemberMacroApplications(node));
     return features;
   }
+}
+
+class TestMacroExecutor implements MacroExecutor {
+  List<_MacroClassIdentifier> macroClasses = [];
+  List<_MacroInstanceIdentifier> macroInstances = [];
+
+  @override
+  Future<String> buildAugmentationLibrary(
+      Iterable<MacroExecutionResult> macroResults) {
+    // TODO: implement buildAugmentationLibrary
+    throw UnimplementedError();
+  }
+
+  @override
+  void close() {
+    // TODO: implement close
+  }
+
+  @override
+  Future<MacroExecutionResult> executeDeclarationsPhase(
+      MacroInstanceIdentifier macro,
+      Declaration declaration,
+      TypeResolver typeResolver,
+      ClassIntrospector classIntrospector) {
+    // TODO: implement executeDeclarationsPhase
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MacroExecutionResult> executeDefinitionsPhase(
+      MacroInstanceIdentifier macro,
+      Declaration declaration,
+      TypeResolver typeResolver,
+      ClassIntrospector classIntrospector,
+      TypeDeclarationResolver typeDeclarationResolver) {
+    // TODO: implement executeDefinitionsPhase
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MacroExecutionResult> executeTypesPhase(
+      MacroInstanceIdentifier macro, Declaration declaration) {
+    // TODO: implement executeTypesPhase
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MacroInstanceIdentifier> instantiateMacro(
+      MacroClassIdentifier macroClass,
+      String constructor,
+      Arguments arguments) async {
+    _MacroInstanceIdentifier id = new _MacroInstanceIdentifier(
+        macroClass as _MacroClassIdentifier, constructor, arguments);
+    macroInstances.add(id);
+    return id;
+  }
+
+  @override
+  Future<MacroClassIdentifier> loadMacro(Uri library, String name) async {
+    _MacroClassIdentifier id = new _MacroClassIdentifier(library, name);
+    macroClasses.add(id);
+    return id;
+  }
+}
+
+class _MacroClassIdentifier implements MacroClassIdentifier {
+  final Uri uri;
+  final String className;
+
+  _MacroClassIdentifier(this.uri, this.className);
+
+  String toText() => '${importUriToString(uri)}/${className}';
+
+  @override
+  int get hashCode => uri.hashCode * 13 + className.hashCode * 17;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _MacroClassIdentifier &&
+        uri == other.uri &&
+        className == other.className;
+  }
+
+  @override
+  String toString() => 'MacroClassIdentifier($uri,$className)';
+}
+
+class _MacroInstanceIdentifier implements MacroInstanceIdentifier {
+  final _MacroClassIdentifier macroClass;
+  final String constructor;
+  final Arguments arguments;
+
+  _MacroInstanceIdentifier(this.macroClass, this.constructor, this.arguments);
+
+  String toText() => '${macroClass.toText()}/${constructor}()';
 }

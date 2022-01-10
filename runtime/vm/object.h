@@ -68,6 +68,7 @@ class CallSiteResetter;
 class CodeStatistics;
 class IsolateGroupReloadContext;
 class ObjectGraphCopier;
+class NativeArguments;
 
 #define REUSABLE_FORWARD_DECLARATION(name) class Reusable##name##HandleScope;
 REUSABLE_HANDLE_LIST(REUSABLE_FORWARD_DECLARATION)
@@ -236,6 +237,8 @@ class BaseTextBuffer;
   OBJECT_SERVICE_SUPPORT(object)                                               \
   friend class Object;
 
+extern "C" void DFLRT_ExitSafepoint(NativeArguments __unusable_);
+
 #define HEAP_OBJECT_IMPLEMENTATION(object, super)                              \
   OBJECT_IMPLEMENTATION(object, super);                                        \
   Untagged##object* untag() const {                                            \
@@ -244,7 +247,8 @@ class BaseTextBuffer;
   }                                                                            \
   SNAPSHOT_SUPPORT(object)                                                     \
   friend class StackFrame;                                                     \
-  friend class Thread;
+  friend class Thread;                                                         \
+  friend void DFLRT_ExitSafepoint(NativeArguments __unusable_);
 
 // This macro is used to denote types that do not have a sub-type.
 #define FINAL_HEAP_OBJECT_IMPLEMENTATION_HELPER(object, rettype, super)        \
@@ -270,7 +274,8 @@ class BaseTextBuffer;
   SNAPSHOT_SUPPORT(rettype)                                                    \
   friend class Object;                                                         \
   friend class StackFrame;                                                     \
-  friend class Thread;
+  friend class Thread;                                                         \
+  friend void DFLRT_ExitSafepoint(NativeArguments __unusable_);
 
 #define FINAL_HEAP_OBJECT_IMPLEMENTATION(object, super)                        \
   FINAL_HEAP_OBJECT_IMPLEMENTATION_HELPER(object, object, super)
@@ -453,7 +458,8 @@ class Object {
   V(Bool, bool_false)                                                          \
   V(Smi, smi_illegal_cid)                                                      \
   V(Smi, smi_zero)                                                             \
-  V(ApiError, typed_data_acquire_error)                                        \
+  V(ApiError, no_callbacks_error)                                              \
+  V(UnwindError, unwind_in_progress_error)                                     \
   V(LanguageError, snapshot_writer_error)                                      \
   V(LanguageError, branch_offset_error)                                        \
   V(LanguageError, speculative_inlining_error)                                 \
@@ -5883,7 +5889,7 @@ class CompressedStackMaps : public Object {
   uintptr_t payload_size() const { return PayloadSizeOf(ptr()); }
   static uintptr_t PayloadSizeOf(const CompressedStackMapsPtr raw) {
     return UntaggedCompressedStackMaps::SizeField::decode(
-        raw->untag()->payload()->flags_and_size);
+        raw->untag()->payload()->flags_and_size());
   }
 
   const uint8_t* data() const { return ptr()->untag()->payload()->data(); }
@@ -5891,8 +5897,8 @@ class CompressedStackMaps : public Object {
   // Methods to allow use with PointerKeyValueTrait to create sets of CSMs.
   bool Equals(const CompressedStackMaps& other) const {
     // All of the table flags and payload size must match.
-    if (untag()->payload()->flags_and_size !=
-        other.untag()->payload()->flags_and_size) {
+    if (untag()->payload()->flags_and_size() !=
+        other.untag()->payload()->flags_and_size()) {
       return false;
     }
     NoSafepointScope no_safepoint;
@@ -5902,7 +5908,7 @@ class CompressedStackMaps : public Object {
 
   static intptr_t HeaderSize() {
     return sizeof(UntaggedCompressedStackMaps) +
-           sizeof(UntaggedCompressedStackMaps::Payload);
+           sizeof(UntaggedCompressedStackMaps::Payload::FlagsAndSizeHeader);
   }
   static intptr_t UnroundedSize(CompressedStackMapsPtr maps) {
     return UnroundedSize(CompressedStackMaps::PayloadSizeOf(maps));
@@ -5920,13 +5926,13 @@ class CompressedStackMaps : public Object {
   bool UsesGlobalTable() const { return UsesGlobalTable(ptr()); }
   static bool UsesGlobalTable(const CompressedStackMapsPtr raw) {
     return UntaggedCompressedStackMaps::UsesTableBit::decode(
-        raw->untag()->payload()->flags_and_size);
+        raw->untag()->payload()->flags_and_size());
   }
 
   bool IsGlobalTable() const { return IsGlobalTable(ptr()); }
   static bool IsGlobalTable(const CompressedStackMapsPtr raw) {
     return UntaggedCompressedStackMaps::GlobalTableBit::decode(
-        raw->untag()->payload()->flags_and_size);
+        raw->untag()->payload()->flags_and_size());
   }
 
   static CompressedStackMapsPtr NewInlined(const void* payload, intptr_t size) {
@@ -5976,18 +5982,18 @@ class CompressedStackMaps : public Object {
 
     uintptr_t payload_size() const {
       return UntaggedCompressedStackMaps::SizeField::decode(
-          payload()->flags_and_size);
+          payload()->flags_and_size());
     }
     const uint8_t* data() const { return payload()->data(); }
 
     bool UsesGlobalTable() const {
       return UntaggedCompressedStackMaps::UsesTableBit::decode(
-          payload()->flags_and_size);
+          payload()->flags_and_size());
     }
 
     bool IsGlobalTable() const {
       return UntaggedCompressedStackMaps::GlobalTableBit::decode(
-          payload()->flags_and_size);
+          payload()->flags_and_size());
     }
 
    private:

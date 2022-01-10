@@ -406,7 +406,11 @@ class ElementResolver extends SimpleAstVisitor<void> {
       return;
     }
     var argumentList = node.argumentList;
-    var parameters = _resolveArgumentsToFunction(argumentList, element);
+    var parameters = _resolveArgumentsToFunction(
+      argumentList,
+      element,
+      enclosingConstructor: node.thisOrAncestorOfType<ConstructorDeclaration>(),
+    );
     if (parameters != null) {
       argumentList.correspondingStaticParameters = parameters;
     }
@@ -446,23 +450,19 @@ class ElementResolver extends SimpleAstVisitor<void> {
   /// cannot be matched to a parameter. Return the parameters that correspond to
   /// the arguments, or `null` if no correspondence could be computed.
   List<ParameterElement?>? _resolveArgumentsToFunction(
-      ArgumentList argumentList, ExecutableElement? executableElement) {
+    ArgumentList argumentList,
+    ExecutableElement? executableElement, {
+    ConstructorDeclaration? enclosingConstructor,
+  }) {
     if (executableElement == null) {
       return null;
     }
-    List<ParameterElement> parameters = executableElement.parameters;
-    return _resolveArgumentsToParameters(argumentList, parameters);
-  }
-
-  /// Given an [argumentList] and the [parameters] related to the element that
-  /// will be invoked using those arguments, compute the list of parameters that
-  /// correspond to the list of arguments. An error will be reported if any of
-  /// the arguments cannot be matched to a parameter. Return the parameters that
-  /// correspond to the arguments.
-  List<ParameterElement?> _resolveArgumentsToParameters(
-      ArgumentList argumentList, List<ParameterElement> parameters) {
     return ResolverVisitor.resolveArgumentsToParameters(
-        argumentList, parameters, _errorReporter.reportErrorForNode);
+      argumentList: argumentList,
+      parameters: executableElement.parameters,
+      errorReporter: _errorReporter,
+      enclosingConstructor: enclosingConstructor,
+    );
   }
 
   /// Resolve the names in the given [combinators] in the scope of the given
