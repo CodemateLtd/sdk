@@ -18,6 +18,7 @@ import 'package:kernel/type_environment.dart'
     show TypeEnvironment, SubtypeCheckMode;
 
 import 'abi.dart';
+import 'native_type_cfe.dart';
 
 /// Represents the (instantiated) ffi.NativeType.
 enum NativeType {
@@ -44,7 +45,7 @@ enum NativeType {
   kBool,
 }
 
-const Set<NativeType> nativeIntTypes = <NativeType>{
+const Set<NativeType> nativeIntTypesFixedSize = <NativeType>{
   NativeType.kInt8,
   NativeType.kInt16,
   NativeType.kInt32,
@@ -53,6 +54,10 @@ const Set<NativeType> nativeIntTypes = <NativeType>{
   NativeType.kUint16,
   NativeType.kUint32,
   NativeType.kUint64,
+};
+
+const Set<NativeType> nativeIntTypes = <NativeType>{
+  ...nativeIntTypesFixedSize,
   NativeType.kIntptr,
 };
 
@@ -178,11 +183,15 @@ class FfiTransformer extends Transformer {
   final Class compoundClass;
   final Class structClass;
   final Class unionClass;
+  final Class abiSpecificIntegerClass;
+  final Class abiSpecificIntegerMappingClass;
   final Class ffiNativeClass;
   final Class nativeFieldWrapperClass1Class;
   final Class ffiStructLayoutClass;
   final Field ffiStructLayoutTypesField;
   final Field ffiStructLayoutPackingField;
+  final Class ffiAbiSpecificMappingClass;
+  final Field ffiAbiSpecificMappingNativeTypesField;
   final Class ffiInlineArrayClass;
   final Field ffiInlineArrayElementTypeField;
   final Field ffiInlineArrayLengthField;
@@ -202,6 +211,12 @@ class FfiTransformer extends Transformer {
   final Procedure unionArrayElemAt;
   final Procedure arrayArrayElemAt;
   final Procedure arrayArrayAssignAt;
+  final Procedure abiSpecificIntegerPointerGetValue;
+  final Procedure abiSpecificIntegerPointerSetValue;
+  final Procedure abiSpecificIntegerPointerElemAt;
+  final Procedure abiSpecificIntegerPointerSetElemAt;
+  final Procedure abiSpecificIntegerArrayElemAt;
+  final Procedure abiSpecificIntegerArraySetElemAt;
   final Procedure asFunctionMethod;
   final Procedure asFunctionInternal;
   final Procedure sizeOfMethod;
@@ -228,12 +243,19 @@ class FfiTransformer extends Transformer {
   final Map<NativeType, Procedure> storeMethods;
   final Map<NativeType, Procedure> storeUnalignedMethods;
   final Map<NativeType, Procedure> elementAtMethods;
+  final Procedure loadAbiSpecificIntMethod;
+  final Procedure loadAbiSpecificIntAtIndexMethod;
+  final Procedure storeAbiSpecificIntMethod;
+  final Procedure storeAbiSpecificIntAtIndexMethod;
+  final Procedure abiCurrentMethod;
+  final Map<Constant, Abi> constantAbis;
   final Procedure memCopy;
   final Procedure allocationTearoff;
   final Procedure asFunctionTearoff;
   final Procedure lookupFunctionTearoff;
   final Procedure getNativeFieldFunction;
   final Procedure reachabilityFenceFunction;
+  final Procedure checkAbiSpecificIntegerMappingFunction;
 
   late final InterfaceType nativeFieldWrapperClass1Type;
   late final InterfaceType voidType;
@@ -300,6 +322,10 @@ class FfiTransformer extends Transformer {
         compoundClass = index.getClass('dart:ffi', '_Compound'),
         structClass = index.getClass('dart:ffi', 'Struct'),
         unionClass = index.getClass('dart:ffi', 'Union'),
+        abiSpecificIntegerClass =
+            index.getClass('dart:ffi', 'AbiSpecificInteger'),
+        abiSpecificIntegerMappingClass =
+            index.getClass('dart:ffi', 'AbiSpecificIntegerMapping'),
         ffiNativeClass = index.getClass('dart:ffi', 'FfiNative'),
         nativeFieldWrapperClass1Class =
             index.getClass('dart:nativewrappers', 'NativeFieldWrapperClass1'),
@@ -308,6 +334,10 @@ class FfiTransformer extends Transformer {
             index.getField('dart:ffi', '_FfiStructLayout', 'fieldTypes'),
         ffiStructLayoutPackingField =
             index.getField('dart:ffi', '_FfiStructLayout', 'packing'),
+        ffiAbiSpecificMappingClass =
+            index.getClass('dart:ffi', '_FfiAbiSpecificMapping'),
+        ffiAbiSpecificMappingNativeTypesField =
+            index.getField('dart:ffi', '_FfiAbiSpecificMapping', 'nativeTypes'),
         ffiInlineArrayClass = index.getClass('dart:ffi', '_FfiInlineArray'),
         ffiInlineArrayElementTypeField =
             index.getField('dart:ffi', '_FfiInlineArray', 'elementType'),
@@ -361,6 +391,18 @@ class FfiTransformer extends Transformer {
         arrayArrayElemAt = index.getProcedure('dart:ffi', 'ArrayArray', '[]'),
         arrayArrayAssignAt =
             index.getProcedure('dart:ffi', 'ArrayArray', '[]='),
+        abiSpecificIntegerPointerGetValue = index.getProcedure(
+            'dart:ffi', 'AbiSpecificIntegerPointer', 'get:value'),
+        abiSpecificIntegerPointerSetValue = index.getProcedure(
+            'dart:ffi', 'AbiSpecificIntegerPointer', 'set:value'),
+        abiSpecificIntegerPointerElemAt =
+            index.getProcedure('dart:ffi', 'AbiSpecificIntegerPointer', '[]'),
+        abiSpecificIntegerPointerSetElemAt =
+            index.getProcedure('dart:ffi', 'AbiSpecificIntegerPointer', '[]='),
+        abiSpecificIntegerArrayElemAt =
+            index.getProcedure('dart:ffi', 'AbiSpecificIntegerArray', '[]'),
+        abiSpecificIntegerArraySetElemAt =
+            index.getProcedure('dart:ffi', 'AbiSpecificIntegerArray', '[]='),
         asFunctionMethod = index.getProcedure(
             'dart:ffi', 'NativeFunctionPointer', 'asFunction'),
         asFunctionInternal =
@@ -405,6 +447,20 @@ class FfiTransformer extends Transformer {
           final name = nativeTypeClassNames[t];
           return index.getTopLevelProcedure('dart:ffi', "_elementAt$name");
         }),
+        loadAbiSpecificIntMethod =
+            index.getTopLevelProcedure('dart:ffi', "_loadAbiSpecificInt"),
+        loadAbiSpecificIntAtIndexMethod = index.getTopLevelProcedure(
+            'dart:ffi', "_loadAbiSpecificIntAtIndex"),
+        storeAbiSpecificIntMethod =
+            index.getTopLevelProcedure('dart:ffi', "_storeAbiSpecificInt"),
+        storeAbiSpecificIntAtIndexMethod = index.getTopLevelProcedure(
+            'dart:ffi', "_storeAbiSpecificIntAtIndex"),
+        abiCurrentMethod = index.getProcedure('dart:ffi', 'Abi', 'current'),
+        constantAbis = abiNames.map((abi, name) => MapEntry(
+            (index.getField('dart:ffi', 'Abi', name).initializer
+                    as ConstantExpression)
+                .constant,
+            abi)),
         memCopy = index.getTopLevelProcedure('dart:ffi', '_memCopy'),
         allocationTearoff = index.getProcedure(
             'dart:ffi', 'AllocatorAlloc', LibraryIndex.tearoffPrefix + 'call'),
@@ -417,7 +473,9 @@ class FfiTransformer extends Transformer {
         getNativeFieldFunction = index.getTopLevelProcedure(
             'dart:nativewrappers', '_getNativeField'),
         reachabilityFenceFunction =
-            index.getTopLevelProcedure('dart:_internal', 'reachabilityFence') {
+            index.getTopLevelProcedure('dart:_internal', 'reachabilityFence'),
+        checkAbiSpecificIntegerMappingFunction = index.getTopLevelProcedure(
+            'dart:ffi', "_checkAbiSpecificIntegerMapping") {
     nativeFieldWrapperClass1Type = nativeFieldWrapperClass1Class.getThisType(
         coreTypes, Nullability.nonNullable);
     voidType = nativeTypesClasses[NativeType.kVoid]!
@@ -448,12 +506,13 @@ class FfiTransformer extends Transformer {
   /// [Uint32]                             -> [int]
   /// [Uint64]                             -> [int]
   /// [IntPtr]                             -> [int]
+  /// T extends [AbiSpecificInteger]       -> [int]
   /// [Double]                             -> [double]
   /// [Float]                              -> [double]
   /// [Bool]                               -> [bool]
   /// [Void]                               -> [void]
   /// [Pointer]<T>                         -> [Pointer]<T>
-  /// T extends [Pointer]                  -> T
+  /// T extends [Compound]                 -> T
   /// [Handle]                             -> [Object]
   /// [NativeFunction]<T1 Function(T2, T3) -> S1 Function(S2, S3)
   ///    where DartRepresentationOf(Tn) -> Sn
@@ -473,6 +532,9 @@ class FfiTransformer extends Transformer {
         return null;
       }
       return nativeType;
+    }
+    if (hierarchy.isSubclassOf(nativeClass, abiSpecificIntegerClass)) {
+      return InterfaceType(intClass, Nullability.legacy);
     }
     if (hierarchy.isSubclassOf(nativeClass, compoundClass)) {
       if (nativeClass == structClass || nativeClass == unionClass) {
@@ -535,26 +597,41 @@ class FfiTransformer extends Transformer {
   InterfaceType _listOfIntType() => InterfaceType(
       listClass, Nullability.legacy, [coreTypes.intLegacyRawType]);
 
-  ConstantExpression intListConstantExpression(List<int> values) =>
+  ConstantExpression intListConstantExpression(List<int?> values) =>
       ConstantExpression(
-          ListConstant(coreTypes.intLegacyRawType,
-              [for (var v in values) IntConstant(v)]),
+          ListConstant(coreTypes.intLegacyRawType, [
+            for (var v in values)
+              if (v != null) IntConstant(v) else NullConstant()
+          ]),
           _listOfIntType());
 
   /// Expression that queries VM internals at runtime to figure out on which ABI
   /// we are.
-  Expression runtimeBranchOnLayout(Map<Abi, int> values) {
-    return InstanceInvocation(
+  Expression runtimeBranchOnLayout(Map<Abi, int?> values) {
+    final result = InstanceInvocation(
         InstanceAccessKind.Instance,
         intListConstantExpression([
-          for (final abi in supportedAbisOrdered) values[abi]!,
+          for (final abi in Abi.values) values[abi],
         ]),
         listElementAt.name,
         Arguments([StaticInvocation(abiMethod, Arguments([]))]),
         interfaceTarget: listElementAt,
         functionType: Substitution.fromInterfaceType(_listOfIntType())
             .substituteType(listElementAt.getterType) as FunctionType);
+    if (values.isPartial) {
+      return checkAbiSpecificIntegerMapping(result);
+    }
+    return result;
   }
+
+  Expression checkAbiSpecificIntegerMapping(Expression nullableExpression) =>
+      StaticInvocation(
+        checkAbiSpecificIntegerMappingFunction,
+        Arguments(
+          [nullableExpression],
+          types: [InterfaceType(intClass, Nullability.nonNullable)],
+        ),
+      );
 
   /// Generates an expression that returns a new `Pointer<dartType>` offset
   /// by [offset] from [pointer].
@@ -725,10 +802,16 @@ class FfiTransformer extends Transformer {
   /// Returns the single element type nested type argument of `Array`.
   ///
   /// `Array<Array<Array<Int8>>>` -> `Int8`.
+  ///
+  /// `Array<Array<Array<Unknown>>>` -> [InvalidType].
   DartType arraySingleElementType(DartType dartType) {
     InterfaceType elementType = dartType as InterfaceType;
     while (elementType.classNode == arrayClass) {
-      elementType = elementType.typeArguments[0] as InterfaceType;
+      final elementTypeAny = elementType.typeArguments[0];
+      if (elementTypeAny is InvalidType) {
+        return elementTypeAny;
+      }
+      elementType = elementTypeAny as InterfaceType;
     }
     return elementType;
   }
@@ -736,14 +819,35 @@ class FfiTransformer extends Transformer {
   /// Returns the number of dimensions of `Array`.
   ///
   /// `Array<Array<Array<Int8>>>` -> 3.
+  ///
+  /// `Array<Array<Array<Unknown>>>` -> 3.
   int arrayDimensions(DartType dartType) {
-    InterfaceType elementType = dartType as InterfaceType;
+    DartType elementType = dartType;
     int dimensions = 0;
-    while (elementType.classNode == arrayClass) {
-      elementType = elementType.typeArguments[0] as InterfaceType;
+    while (
+        elementType is InterfaceType && elementType.classNode == arrayClass) {
+      elementType = elementType.typeArguments[0];
       dimensions++;
     }
     return dimensions;
+  }
+
+  bool isAbiSpecificIntegerSubtype(DartType type) {
+    if (type is InvalidType) {
+      return false;
+    }
+    if (type is NullType) {
+      return false;
+    }
+    if (type is InterfaceType) {
+      if (type.classNode == abiSpecificIntegerClass) {
+        return false;
+      }
+    }
+    return env.isSubtypeOf(
+        type,
+        InterfaceType(abiSpecificIntegerClass, Nullability.legacy),
+        SubtypeCheckMode.ignoringNullabilities);
   }
 
   bool isCompoundSubtype(DartType type) {
@@ -795,6 +899,76 @@ class FfiTransformer extends Transformer {
         interfaceTarget: numMultiplication,
         functionType: numMultiplication.getterType as FunctionType);
   }
+
+  Iterable<MapConstant> getAbiSpecificIntegerMappingAnnotations(Class node) {
+    return node.annotations
+        .whereType<ConstantExpression>()
+        .map((e) => e.constant)
+        .whereType<InstanceConstant>()
+        .where((e) => e.classNode == abiSpecificIntegerMappingClass)
+        .map((instanceConstant) =>
+            instanceConstant.fieldValues.values.single as MapConstant);
+  }
+
+  /// Generates an expression performing an Abi specific integer load or store.
+  ///
+  /// If [value] is provided, it is a store, otherwise a load.
+  ///
+  /// Provide either [index], or [offsetInBytes], or none for an offset of 0.
+  ///
+  /// Generates an expression:
+  ///
+  /// ```dart
+  /// _storeAbiSpecificInt(
+  ///   [8, 8, 4][_abi()],
+  ///   typedDataBase,
+  ///   index * [8, 8, 4][_abi()],
+  ///   value,
+  /// )
+  /// ```
+  Expression abiSpecificLoadOrStoreExpression(
+    AbiSpecificNativeTypeCfe nativeTypeCfe, {
+    required Expression typedDataBase,
+    Expression? offsetInBytes,
+    Expression? index,
+    Expression? value,
+    required fileOffset,
+  }) {
+    assert(index == null || offsetInBytes == null);
+    final method = () {
+      if (value != null) {
+        if (index != null) {
+          return storeAbiSpecificIntAtIndexMethod;
+        }
+        return storeAbiSpecificIntMethod;
+      }
+      if (index != null) {
+        return loadAbiSpecificIntAtIndexMethod;
+      }
+      return loadAbiSpecificIntMethod;
+    }();
+
+    final Expression offsetOrIndex = () {
+      if (offsetInBytes != null) {
+        return offsetInBytes;
+      }
+      if (index != null) {
+        return index;
+      }
+      return ConstantExpression(IntConstant(0));
+    }();
+
+    return StaticInvocation(
+      method,
+      Arguments([
+        typedDataBase,
+        offsetOrIndex,
+        if (value != null) value,
+      ], types: [
+        InterfaceType(nativeTypeCfe.clazz, Nullability.nonNullable)
+      ]),
+    )..fileOffset = fileOffset;
+  }
 }
 
 /// Checks if any library depends on dart:ffi.
@@ -809,4 +983,9 @@ bool importsFfi(Component component, List<Library> libraries) {
     }
   }
   return false;
+}
+
+extension on Map<Abi, Object?> {
+  bool get isPartial =>
+      [for (final abi in Abi.values) this[abi]].contains(null);
 }

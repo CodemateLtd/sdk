@@ -119,6 +119,8 @@ class FlowGraph : public ZoneAllocated {
   const ParsedFunction& parsed_function() const { return parsed_function_; }
   const Function& function() const { return parsed_function_.function(); }
 
+  void Print(const char* phase = "unknown");
+
   // The number of directly accessable parameters (above the frame pointer).
   // All other parameters can only be indirectly loaded via metadata found in
   // the arguments descriptor.
@@ -467,6 +469,9 @@ class FlowGraph : public ZoneAllocated {
   void RenameUsesDominatedByRedefinitions();
 
   bool should_print() const { return should_print_; }
+  const uint8_t* compiler_pass_filters() const {
+    return compiler_pass_filters_;
+  }
 
   //
   // High-level utilities.
@@ -630,6 +635,7 @@ class FlowGraph : public ZoneAllocated {
 
   intptr_t inlining_id_;
   bool should_print_;
+  uint8_t* compiler_pass_filters_ = nullptr;
 
   const Array* coverage_array_ = &Array::empty_array();
 };

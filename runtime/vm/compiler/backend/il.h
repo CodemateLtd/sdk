@@ -11,6 +11,7 @@
 #endif  // defined(DART_PRECOMPILED_RUNTIME)
 
 #include <memory>
+#include <tuple>
 #include <utility>
 
 #include "vm/allocation.h"
@@ -54,13 +55,13 @@ class FlowGraphCompiler;
 class FlowGraphVisitor;
 class ForwardInstructionIterator;
 class Instruction;
+class InstructionVisitor;
 class LocalVariable;
 class LoopInfo;
 class ParsedFunction;
 class Range;
 class RangeAnalysis;
 class RangeBoundary;
-class SuccessorsIterable;
 class TypeUsageInfo;
 class UnboxIntegerInstr;
 
@@ -233,6 +234,10 @@ struct CidRangeValue {
 
   bool IsIllegalRange() const {
     return cid_start == kIllegalCid && cid_end == kIllegalCid;
+  }
+
+  bool Equals(const CidRangeValue& other) const {
+    return cid_start == other.cid_start && cid_end == other.cid_end;
   }
 
   intptr_t cid_start;
@@ -537,7 +542,7 @@ FOR_EACH_ABSTRACT_INSTRUCTION(FORWARD_DECLARATION)
 // Functions required in all concrete instruction classes.
 #define DECLARE_INSTRUCTION_NO_BACKEND(type)                                   \
   virtual Tag tag() const { return k##type; }                                  \
-  virtual void Accept(FlowGraphVisitor* visitor);                              \
+  virtual void Accept(InstructionVisitor* visitor);                            \
   DEFINE_INSTRUCTION_TYPE_CHECK(type)
 
 #define DECLARE_INSTRUCTION_BACKEND()                                          \
@@ -564,9 +569,13 @@ FOR_EACH_ABSTRACT_INSTRUCTION(FORWARD_DECLARATION)
 #define PRINT_TO_SUPPORT virtual void PrintTo(BaseTextBuffer* f) const;
 #define PRINT_OPERANDS_TO_SUPPORT                                              \
   virtual void PrintOperandsTo(BaseTextBuffer* f) const;
+#define DECLARE_ATTRIBUTES(...)                                                \
+  auto GetAttributes() const { return std::make_tuple(__VA_ARGS__); }          \
+  static auto GetAttributeNames() { return std::make_tuple(#__VA_ARGS__); }
 #else
 #define PRINT_TO_SUPPORT
 #define PRINT_OPERANDS_TO_SUPPORT
+#define DECLARE_ATTRIBUTES(...)
 #endif  // defined(INCLUDE_IL_PRINTER)
 
 // Together with CidRange, this represents a mapping from a range of class-ids
@@ -759,6 +768,64 @@ class BinaryFeedback : public ZoneAllocated {
 typedef ZoneGrowableArray<Value*> InputsArray;
 typedef ZoneGrowableArray<PushArgumentInstr*> PushArgumentsArray;
 
+template <typename Trait>
+class InstructionIndexedPropertyIterable {
+ public:
+  struct Iterator {
+    const Instruction* instr;
+    intptr_t index;
+
+    decltype(Trait::At(instr, index)) operator*() const {
+      return Trait::At(instr, index);
+    }
+    Iterator& operator++() {
+      index++;
+      return *this;
+    }
+
+    bool operator==(const Iterator& other) {
+      return instr == other.instr && index == other.index;
+    }
+
+    bool operator!=(const Iterator& other) { return !(*this == other); }
+  };
+
+  explicit InstructionIndexedPropertyIterable(const Instruction* instr)
+      : instr_(instr) {}
+
+  Iterator begin() const { return {instr_, 0}; }
+  Iterator end() const { return {instr_, Trait::Length(instr_)}; }
+
+ private:
+  const Instruction* instr_;
+};
+
+class ValueListIterable {
+ public:
+  struct Iterator {
+    Value* value;
+
+    Value* operator*() const { return value; }
+
+    Iterator& operator++() {
+      value = value->next_use();
+      return *this;
+    }
+
+    bool operator==(const Iterator& other) { return value == other.value; }
+
+    bool operator!=(const Iterator& other) { return !(*this == other); }
+  };
+
+  explicit ValueListIterable(Value* value) : value_(value) {}
+
+  Iterator begin() const { return {value_}; }
+  Iterator end() const { return {nullptr}; }
+
+ private:
+  Value* value_;
+};
+
 class Instruction : public ZoneAllocated {
  public:
 #define DECLARE_TAG(type, attrs) k##type,
@@ -818,6 +885,20 @@ class Instruction : public ZoneAllocated {
     RawSetInputAt(i, value);
   }
 
+  struct InputsTrait {
+    static Definition* At(const Instruction* instr, intptr_t index) {
+      return instr->InputAt(index)->definition();
+    }
+
+    static intptr_t Length(const Instruction* instr) {
+      return instr->InputCount();
+    }
+  };
+
+  using InputsIterable = InstructionIndexedPropertyIterable<InputsTrait>;
+
+  InputsIterable inputs() { return InputsIterable(this); }
+
   // Remove all inputs (including in the environment) from their
   // definition's use lists.
   void UnuseAllInputs();
@@ -867,7 +948,7 @@ class Instruction : public ZoneAllocated {
   }
 
   // Visiting support.
-  virtual void Accept(FlowGraphVisitor* visitor) = 0;
+  virtual void Accept(InstructionVisitor* visitor) = 0;
 
   Instruction* previous() const { return previous_; }
   void set_previous(Instruction* instr) {
@@ -907,7 +988,22 @@ class Instruction : public ZoneAllocated {
   virtual intptr_t SuccessorCount() const;
   virtual BlockEntryInstr* SuccessorAt(intptr_t index) const;
 
-  inline SuccessorsIterable successors() const;
+  struct SuccessorsTrait {
+    static BlockEntryInstr* At(const Instruction* instr, intptr_t index) {
+      return instr->SuccessorAt(index);
+    }
+
+    static intptr_t Length(const Instruction* instr) {
+      return instr->SuccessorCount();
+    }
+  };
+
+  using SuccessorsIterable =
+      InstructionIndexedPropertyIterable<SuccessorsTrait>;
+
+  inline SuccessorsIterable successors() const {
+    return SuccessorsIterable(this);
+  }
 
   void Goto(JoinEntryInstr* entry);
 
@@ -951,6 +1047,11 @@ class Instruction : public ZoneAllocated {
   template <typename T>
   T* Cast() {
     return static_cast<T*>(this);
+  }
+
+  template <typename T>
+  const T* Cast() const {
+    return static_cast<const T*>(this);
   }
 
   // Returns structure describing location constraints required
@@ -2282,6 +2383,10 @@ class Definition : public Instruction {
   Value* env_use_list() const { return env_use_list_; }
   void set_env_use_list(Value* head) { env_use_list_ = head; }
 
+  ValueListIterable input_uses() const {
+    return ValueListIterable(input_use_list_);
+  }
+
   void AddInputUse(Value* value) { Value::AddToList(value, &input_use_list_); }
   void AddEnvUse(Value* value) { Value::AddToList(value, &env_use_list_); }
 
@@ -2566,6 +2671,7 @@ class ParameterInstr : public Definition {
         block_(block) {}
 
   DECLARE_INSTRUCTION(Parameter)
+  DECLARE_ATTRIBUTES(index())
 
   intptr_t index() const { return index_; }
   intptr_t param_offset() const { return param_offset_; }
@@ -3254,6 +3360,7 @@ class ComparisonInstr : public Definition {
 
   virtual TokenPosition token_pos() const { return token_pos_; }
   Token::Kind kind() const { return kind_; }
+  DECLARE_ATTRIBUTES(kind())
 
   virtual ComparisonInstr* CopyWithNewOperands(Value* left, Value* right) = 0;
 
@@ -3762,6 +3869,8 @@ class AssertAssignableInstr : public TemplateDefinition<4, Throws, Pure> {
 
   virtual Value* RedefinedValue() const;
 
+  virtual void InferRange(RangeAnalysis* analysis, Range* range);
+
   PRINT_OPERANDS_TO_SUPPORT
 
  private:
@@ -4098,6 +4207,9 @@ class InstanceCallBaseInstr : public TemplateDartCall<0> {
   Code::EntryKind entry_kind() const { return entry_kind_; }
   void set_entry_kind(Code::EntryKind value) { entry_kind_ = value; }
 
+  void mark_as_call_on_this() { is_call_on_this_ = true; }
+  bool is_call_on_this() const { return is_call_on_this_; }
+
   DEFINE_INSTRUCTION_TYPE_CHECK(InstanceCallBase);
 
   bool receiver_is_not_smi() const { return receiver_is_not_smi_; }
@@ -4144,6 +4256,7 @@ class InstanceCallBaseInstr : public TemplateDartCall<0> {
   bool has_unique_selector_;
   Code::EntryKind entry_kind_ = Code::EntryKind::kNormal;
   bool receiver_is_not_smi_ = false;
+  bool is_call_on_this_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(InstanceCallBaseInstr);
 };
@@ -4254,6 +4367,9 @@ class PolymorphicInstanceCallInstr : public InstanceCallBaseInstr {
     new_call->set_result_type(call->result_type());
     new_call->set_entry_kind(call->entry_kind());
     new_call->set_has_unique_selector(call->has_unique_selector());
+    if (call->is_call_on_this()) {
+      new_call->mark_as_call_on_this();
+    }
     return new_call;
   }
 
@@ -4358,9 +4474,13 @@ class DispatchTableCallInstr : public TemplateDartCall<1> {
       const compiler::TableSelector* selector);
 
   DECLARE_INSTRUCTION(DispatchTableCall)
+  DECLARE_ATTRIBUTES(selector_name())
 
   const Function& interface_target() const { return interface_target_; }
   const compiler::TableSelector* selector() const { return selector_; }
+  const char* selector_name() const {
+    return String::Handle(interface_target().name()).ToCString();
+  }
 
   Value* class_id() const { return InputAt(InputCount() - 1); }
 
@@ -5559,27 +5679,82 @@ class GuardFieldTypeInstr : public GuardFieldInstr {
   DISALLOW_COPY_AND_ASSIGN(GuardFieldTypeInstr);
 };
 
-class LoadStaticFieldInstr : public TemplateDefinition<0, Throws> {
+template <intptr_t N>
+class TemplateLoadField : public TemplateDefinition<N, Throws> {
+  using Base = TemplateDefinition<N, Throws>;
+
+ public:
+  TemplateLoadField(const InstructionSource& source,
+                    bool calls_initializer = false,
+                    intptr_t deopt_id = DeoptId::kNone,
+                    const Field* field = nullptr)
+      : Base(source, deopt_id),
+        token_pos_(source.token_pos),
+        throw_exception_on_initialization_(
+            field != nullptr && !field->has_initializer() && field->is_late()),
+        calls_initializer_(calls_initializer) {
+    ASSERT(!calls_initializer || field != nullptr);
+    ASSERT(!calls_initializer || (deopt_id != DeoptId::kNone));
+  }
+
+  virtual TokenPosition token_pos() const { return token_pos_; }
+  bool calls_initializer() const { return calls_initializer_; }
+  void set_calls_initializer(bool value) { calls_initializer_ = value; }
+
+  bool throw_exception_on_initialization() const {
+    return throw_exception_on_initialization_;
+  }
+
+  // Slow path is used if load throws exception on initialization.
+  virtual bool UseSharedSlowPathStub(bool is_optimizing) const {
+    return Base::SlowPathSharingSupported(is_optimizing);
+  }
+
+  virtual intptr_t DeoptimizationTarget() const { return Base::GetDeoptId(); }
+  virtual bool ComputeCanDeoptimize() const { return false; }
+  virtual bool ComputeCanDeoptimizeAfterCall() const {
+    return calls_initializer() && !CompilerState::Current().is_aot();
+  }
+  virtual intptr_t NumberOfInputsConsumedBeforeCall() const {
+    return Base::InputCount();
+  }
+
+  virtual bool HasUnknownSideEffects() const {
+    return calls_initializer() && !throw_exception_on_initialization();
+  }
+
+  virtual bool CanCallDart() const {
+    // The slow path (running the field initializer) always calls one of a
+    // specific set of stubs. For those stubs that do not simply call the
+    // runtime, the GC recognizes their frames and restores write barriers
+    // automatically (see Thread::RestoreWriteBarrierInvariant).
+    return false;
+  }
+  virtual bool CanTriggerGC() const { return calls_initializer(); }
+  virtual bool MayThrow() const { return calls_initializer(); }
+
+ private:
+  const TokenPosition token_pos_;
+  const bool throw_exception_on_initialization_;
+  bool calls_initializer_;
+
+  DISALLOW_COPY_AND_ASSIGN(TemplateLoadField);
+};
+
+class LoadStaticFieldInstr : public TemplateLoadField<0> {
  public:
   LoadStaticFieldInstr(const Field& field,
                        const InstructionSource& source,
                        bool calls_initializer = false,
                        intptr_t deopt_id = DeoptId::kNone)
-      : TemplateDefinition(source, deopt_id),
-        field_(field),
-        token_pos_(source.token_pos),
-        calls_initializer_(calls_initializer) {
-    ASSERT(!calls_initializer || (deopt_id != DeoptId::kNone));
-  }
+      : TemplateLoadField<0>(source, calls_initializer, deopt_id, &field),
+        field_(field) {}
 
   DECLARE_INSTRUCTION(LoadStaticField)
 
   virtual CompileType ComputeType() const;
 
   const Field& field() const { return field_; }
-
-  bool calls_initializer() const { return calls_initializer_; }
-  void set_calls_initializer(bool value) { calls_initializer_ = value; }
 
   virtual bool AllowsCSE() const {
     // If two loads of a static-final-late field call the initializer and one
@@ -5593,23 +5768,12 @@ class LoadStaticFieldInstr : public TemplateDefinition<0, Throws> {
            (!field().is_late() || field().has_initializer());
   }
 
-  virtual bool ComputeCanDeoptimize() const {
-    return calls_initializer() && !CompilerState::Current().is_aot();
-  }
-  virtual bool HasUnknownSideEffects() const { return calls_initializer(); }
-  virtual bool CanTriggerGC() const { return calls_initializer(); }
-  virtual bool MayThrow() const { return calls_initializer(); }
-
   virtual bool AttributesEqual(const Instruction& other) const;
-
-  virtual TokenPosition token_pos() const { return token_pos_; }
 
   PRINT_OPERANDS_TO_SUPPORT
 
  private:
   const Field& field_;
-  const TokenPosition token_pos_;
-  bool calls_initializer_;
 
   DISALLOW_COPY_AND_ASSIGN(LoadStaticFieldInstr);
 };
@@ -6622,45 +6786,23 @@ class LoadClassIdInstr : public TemplateDefinition<1, NoThrow, Pure> {
 // Note: if slot was a subject of the field unboxing optimization then this load
 // would both load the box stored in the field and then load the content of
 // the box.
-class LoadFieldInstr : public TemplateDefinition<1, Throws> {
+class LoadFieldInstr : public TemplateLoadField<1> {
  public:
   LoadFieldInstr(Value* instance,
                  const Slot& slot,
                  const InstructionSource& source,
                  bool calls_initializer = false,
                  intptr_t deopt_id = DeoptId::kNone)
-      : TemplateDefinition(source, deopt_id),
-        slot_(slot),
-        token_pos_(source.token_pos),
-        calls_initializer_(calls_initializer),
-        throw_exception_on_initialization_(false) {
-    ASSERT(!calls_initializer || (deopt_id != DeoptId::kNone));
-    ASSERT(!calls_initializer || slot.IsDartField());
+      : TemplateLoadField(source,
+                          calls_initializer,
+                          deopt_id,
+                          slot.IsDartField() ? &slot.field() : nullptr),
+        slot_(slot) {
     SetInputAt(0, instance);
-    if (calls_initializer_) {
-      const Field& field = slot.field();
-      throw_exception_on_initialization_ = !field.needs_load_guard() &&
-                                           field.is_late() &&
-                                           !field.has_initializer();
-    }
   }
 
   Value* instance() const { return inputs_[0]; }
   const Slot& slot() const { return slot_; }
-
-  virtual TokenPosition token_pos() const { return token_pos_; }
-
-  bool calls_initializer() const { return calls_initializer_; }
-  void set_calls_initializer(bool value) { calls_initializer_ = value; }
-
-  bool throw_exception_on_initialization() const {
-    return throw_exception_on_initialization_;
-  }
-
-  // Slow path is used if load throws exception on initialization.
-  virtual bool UseSharedSlowPathStub(bool is_optimizing) const {
-    return SlowPathSharingSupported(is_optimizing);
-  }
 
   virtual Representation representation() const;
 
@@ -6674,26 +6816,9 @@ class LoadFieldInstr : public TemplateDefinition<1, Throws> {
   bool IsPotentialUnboxedDartFieldLoad() const;
 
   DECLARE_INSTRUCTION(LoadField)
+  DECLARE_ATTRIBUTES(&slot())
+
   virtual CompileType ComputeType() const;
-
-  virtual intptr_t DeoptimizationTarget() const { return GetDeoptId(); }
-  virtual bool ComputeCanDeoptimize() const { return false; }
-  virtual bool ComputeCanDeoptimizeAfterCall() const {
-    return calls_initializer() && !CompilerState::Current().is_aot();
-  }
-  virtual intptr_t NumberOfInputsConsumedBeforeCall() const {
-    return InputCount();
-  }
-
-  virtual bool HasUnknownSideEffects() const {
-    return calls_initializer() && !throw_exception_on_initialization();
-  }
-
-  virtual bool CanCallDart() const {
-    return calls_initializer() && !throw_exception_on_initialization();
-  }
-  virtual bool CanTriggerGC() const { return calls_initializer(); }
-  virtual bool MayThrow() const { return calls_initializer(); }
 
   virtual void InferRange(RangeAnalysis* analysis, Range* range);
 
@@ -6733,9 +6858,6 @@ class LoadFieldInstr : public TemplateDefinition<1, Throws> {
   void EmitNativeCodeForInitializerCall(FlowGraphCompiler* compiler);
 
   const Slot& slot_;
-  const TokenPosition token_pos_;
-  bool calls_initializer_;
-  bool throw_exception_on_initialization_;
 
   DISALLOW_COPY_AND_ASSIGN(LoadFieldInstr);
 };
@@ -8874,7 +8996,9 @@ class CheckClassIdInstr : public TemplateInstruction<1, NoThrow> {
   virtual bool AllowsCSE() const { return true; }
   virtual bool HasUnknownSideEffects() const { return false; }
 
-  virtual bool AttributesEqual(const Instruction& other) const { return true; }
+  virtual bool AttributesEqual(const Instruction& other) const {
+    return other.Cast<CheckClassIdInstr>()->cids().Equals(cids_);
+  }
 
   PRINT_OPERANDS_TO_SUPPORT
 
@@ -9664,9 +9788,27 @@ class Environment : public ZoneAllocated {
   DISALLOW_COPY_AND_ASSIGN(Environment);
 };
 
+class InstructionVisitor : public ValueObject {
+ public:
+  InstructionVisitor() {}
+  virtual ~InstructionVisitor() {}
+
+// Visit functions for instruction classes, with an empty default
+// implementation.
+#define DECLARE_VISIT_INSTRUCTION(ShortName, Attrs)                            \
+  virtual void Visit##ShortName(ShortName##Instr* instr) {}
+
+  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+
+#undef DECLARE_VISIT_INSTRUCTION
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InstructionVisitor);
+};
+
 // Visitor base class to visit each instruction and computation in a flow
 // graph as defined by a reversed list of basic blocks.
-class FlowGraphVisitor : public ValueObject {
+class FlowGraphVisitor : public InstructionVisitor {
  public:
   explicit FlowGraphVisitor(const GrowableArray<BlockEntryInstr*>& block_order)
       : current_iterator_(NULL), block_order_(&block_order) {}
@@ -9679,15 +9821,6 @@ class FlowGraphVisitor : public ValueObject {
   // Visit each block in the block order, and for each block its
   // instructions in order from the block entry to exit.
   virtual void VisitBlocks();
-
-// Visit functions for instruction classes, with an empty default
-// implementation.
-#define DECLARE_VISIT_INSTRUCTION(ShortName, Attrs)                            \
-  virtual void Visit##ShortName(ShortName##Instr* instr) {}
-
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
-
-#undef DECLARE_VISIT_INSTRUCTION
 
  protected:
   void set_block_order(const GrowableArray<BlockEntryInstr*>& block_order) {
@@ -9725,37 +9858,6 @@ inline bool Value::CanBe(const Object& value) {
   return (constant == nullptr) || constant->value().ptr() == value.ptr();
 }
 
-class SuccessorsIterable {
- public:
-  struct Iterator {
-    const Instruction* instr;
-    intptr_t index;
-
-    BlockEntryInstr* operator*() const { return instr->SuccessorAt(index); }
-    Iterator& operator++() {
-      index++;
-      return *this;
-    }
-
-    bool operator==(const Iterator& other) {
-      return instr == other.instr && index == other.index;
-    }
-
-    bool operator!=(const Iterator& other) { return !(*this == other); }
-  };
-
-  explicit SuccessorsIterable(const Instruction* instr) : instr_(instr) {}
-
-  Iterator begin() const { return {instr_, 0}; }
-  Iterator end() const { return {instr_, instr_->SuccessorCount()}; }
-
- private:
-  const Instruction* instr_;
-};
-
-SuccessorsIterable Instruction::successors() const {
-  return SuccessorsIterable(this);
-}
 
 }  // namespace dart
 

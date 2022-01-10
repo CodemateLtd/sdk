@@ -11,7 +11,6 @@ import 'package:analysis_server/src/plugin/plugin_manager.dart';
 import 'package:analysis_server/src/protocol_server.dart';
 import 'package:analysis_server/src/provisional/completion/dart/completion_dart.dart';
 import 'package:analysis_server/src/server/crash_reporting_attachments.dart';
-import 'package:analysis_server/src/services/completion/dart/not_imported_contributor.dart';
 import 'package:analysis_server/src/utilities/mocks.dart';
 import 'package:analyzer/file_system/file_system.dart';
 import 'package:analyzer/instrumentation/service.dart';
@@ -229,10 +228,6 @@ class CompletionDomainHandlerGetSuggestions2Test
     completionDomain.budgetDuration = const Duration(seconds: 30);
   }
 
-  void tearDown() {
-    NotImportedContributor.onFile = null;
-  }
-
   Future<void> test_abort_onAnotherCompletionRequest() async {
     var abortedIdSet = <String>{};
     server.discardedRequests.stream.listen((request) {
@@ -300,38 +295,6 @@ class CompletionDomainHandlerGetSuggestions2Test
       ..suggestions.assertEmpty();
   }
 
-  Future<void> test_notImported_abort() async {
-    await _configureWithWorkspaceRoot();
-
-    NotImportedContributor.onFile = (file) {
-      if (file.uriStr == 'dart:math') {
-        unawaited(
-          _getSuggestions(
-            path: convertPath(testFilePath),
-            completionOffset: 0,
-            maxResults: 100,
-          ),
-        );
-      }
-    };
-
-    var responseValidator = await _getTestCodeSuggestions('''
-void f() {
-  Rand^
-}
-''');
-
-    responseValidator
-      ..assertIncomplete()
-      ..assertReplacementBack(4)
-      ..assertLibrariesToImport(includes: [], excludes: [
-        'dart:core',
-        'dart:math',
-      ]);
-
-    responseValidator.suggestions.assertEmpty();
-  }
-
   Future<void> test_notImported_dart() async {
     await _configureWithWorkspaceRoot();
 
@@ -372,7 +335,7 @@ void f() {
 ''');
 
     responseValidator
-      ..assertComplete()
+      ..assertIncomplete()
       ..assertReplacementBack(4)
       ..assertLibrariesToImport(includes: [], excludes: [
         'dart:core',
@@ -1816,42 +1779,42 @@ class A {
     addTestFile('class A {bool foo; A() : ^;}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_constructor2() async {
     addTestFile('class A {bool foo; A() : s^;}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_constructor3() async {
     addTestFile('class A {bool foo; A() : a=7,^;}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_constructor4() async {
     addTestFile('class A {bool foo; A() : a=7,s^;}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_constructor5() async {
     addTestFile('class A {bool foo; A() : a=7,s^}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_constructor6() async {
     addTestFile('class A {bool foo; A() : a=7,^ void bar() {}}');
     await getSuggestions();
     assertHasResult(CompletionSuggestionKind.KEYWORD, 'super');
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'foo');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
   }
 
   Future<void> test_extension() async {
@@ -1909,9 +1872,9 @@ extension MyClassExtension on MyClass {
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'Object',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'HtmlElement',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'HtmlElement',
           elementKind: ElementKind.CLASS);
       assertNoResult('test');
     });
@@ -2060,7 +2023,7 @@ extension MyClassExtension on MyClass {
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'Object',
           elementKind: ElementKind.CLASS);
       assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'foo');
       assertNoResult('HtmlElement');
@@ -2076,7 +2039,7 @@ extension MyClassExtension on MyClass {
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'HtmlElement');
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'HtmlElement');
       assertNoResult('test');
     });
   }
@@ -2265,7 +2228,7 @@ class B extends A {
 class A { var isVisible;}
 void f(A p) { var v1 = p.is^; }''');
     await getSuggestions();
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'isVisible');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'isVisible');
   }
 
   Future<void> test_keyword() {
@@ -2295,7 +2258,7 @@ void f() {
     expect(replacementLength, equals(0));
 
     // The class is suggested.
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'A',
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'A',
         elementKind: ElementKind.CLASS);
 
     // Both constructors - default and named, are suggested.
@@ -2348,7 +2311,7 @@ void f() {
     expect(replacementLength, equals(0));
 
     // The class is suggested.
-    assertHasResult(CompletionSuggestionKind.INVOCATION, 'A');
+    assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'A');
 
     // Class and all its constructors are shadowed by the local variable.
     assertNoResult('A', elementKind: ElementKind.CLASS);
@@ -2361,12 +2324,12 @@ void f() {
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'A',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'A',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'a');
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'b');
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'a');
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'b');
       assertHasResult(CompletionSuggestionKind.INVOCATION, 'x');
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'DateTime',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'DateTime',
           elementKind: ElementKind.CLASS);
     });
   }
@@ -2406,11 +2369,11 @@ class B extends A {m() {^}}
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'Object',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'HtmlElement',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'HtmlElement',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'A',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'A',
           elementKind: ElementKind.CLASS);
       assertNoResult('test');
     });
@@ -2429,11 +2392,11 @@ class B extends A {m() {^}}
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'Object',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'HtmlElement',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'HtmlElement',
           elementKind: ElementKind.CLASS);
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'A',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'A',
           elementKind: ElementKind.CLASS);
       assertNoResult('test');
     });
@@ -2469,7 +2432,7 @@ class B extends A {m() {^}}
     return getSuggestions().then((_) {
       expect(replacementOffset, equals(completionOffset));
       expect(replacementLength, equals(0));
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object',
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'Object',
           elementKind: ElementKind.CLASS);
       assertNoResult('HtmlElement');
       assertNoResult('test');
@@ -2496,7 +2459,7 @@ class B extends A {m() {^}}
       expect(replacementLength, equals(4));
       // Suggestions based upon imported elements are partially filtered
       //assertHasResult(CompletionSuggestionKind.INVOCATION, 'Object');
-      assertHasResult(CompletionSuggestionKind.INVOCATION, 'test');
+      assertHasResult(CompletionSuggestionKind.IDENTIFIER, 'test');
       assertNoResult('HtmlElement');
     });
   }
@@ -2690,7 +2653,7 @@ class SingleSuggestionValidator {
   });
 
   void assertClass() {
-    expect(suggestion.kind, CompletionSuggestionKind.INVOCATION);
+    expect(suggestion.kind, CompletionSuggestionKind.IDENTIFIER);
     expect(suggestion.element?.kind, ElementKind.CLASS);
   }
 
@@ -2700,7 +2663,7 @@ class SingleSuggestionValidator {
   }
 
   void assertGetter() {
-    expect(suggestion.kind, CompletionSuggestionKind.INVOCATION);
+    expect(suggestion.kind, CompletionSuggestionKind.IDENTIFIER);
     expect(suggestion.element?.kind, ElementKind.GETTER);
   }
 
@@ -2719,12 +2682,12 @@ class SingleSuggestionValidator {
   }
 
   void assertSetter() {
-    expect(suggestion.kind, CompletionSuggestionKind.INVOCATION);
+    expect(suggestion.kind, CompletionSuggestionKind.IDENTIFIER);
     expect(suggestion.element?.kind, ElementKind.SETTER);
   }
 
   void assertTopLevelVariable() {
-    expect(suggestion.kind, CompletionSuggestionKind.INVOCATION);
+    expect(suggestion.kind, CompletionSuggestionKind.IDENTIFIER);
     expect(suggestion.element?.kind, ElementKind.TOP_LEVEL_VARIABLE);
   }
 }
@@ -2820,18 +2783,18 @@ class SuggestionsValidator {
 
 extension on CheckTarget<CompletionGetSuggestionDetails2Result> {
   @useResult
-  CheckTarget<String> get completion {
-    return nest(
-      value.completion,
-      (selected) => 'has completion ${valueStr(selected)}',
-    );
-  }
-
-  @useResult
   CheckTarget<SourceChange> get change {
     return nest(
       value.change,
       (selected) => 'has change ${valueStr(selected)}',
+    );
+  }
+
+  @useResult
+  CheckTarget<String> get completion {
+    return nest(
+      value.completion,
+      (selected) => 'has completion ${valueStr(selected)}',
     );
   }
 }

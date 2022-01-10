@@ -2,15 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.9
-
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
-import 'package:front_end/src/testing/id_testing_helper.dart';
-import 'package:front_end/src/fasta/builder/member_builder.dart';
 import 'package:front_end/src/fasta/source/source_loader.dart';
+import 'package:front_end/src/fasta/source/source_member_builder.dart';
 import 'package:front_end/src/fasta/type_inference/type_inference_engine.dart';
+import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
 import 'package:kernel/ast.dart' hide Variance;
 
@@ -36,18 +35,16 @@ class DefiniteUnassignmentDataComputer extends DataComputer<String> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    MemberBuilderImpl memberBuilder =
-        lookupMemberBuilder(compilerResult, member);
+      {bool? verbose}) {
+    SourceMemberBuilder memberBuilder =
+        lookupMemberBuilder(testResultData.compilerResult, member)
+            as SourceMemberBuilder;
     member.accept(new DefiniteUnassignmentDataExtractor(
-        compilerResult,
+        testResultData.compilerResult,
         actualMap,
-        memberBuilder.dataForTesting.inferenceData.flowAnalysisResult));
+        memberBuilder.dataForTesting!.inferenceData.flowAnalysisResult));
   }
 
   /// Errors are supported for testing erroneous code. The reported errors are
@@ -63,11 +60,11 @@ class DefiniteUnassignmentDataExtractor extends CfeDataExtractor<String> {
   DefiniteUnassignmentDataExtractor(InternalCompilerResult compilerResult,
       Map<Id, ActualData<String>> actualMap, this._flowResult)
       : _sourceLoaderDataForTesting =
-            compilerResult.kernelTargetForTesting.loader.dataForTesting,
+            compilerResult.kernelTargetForTesting!.loader.dataForTesting!,
         super(compilerResult, actualMap);
 
   @override
-  String computeNodeValue(Id id, TreeNode node) {
+  String? computeNodeValue(Id id, TreeNode node) {
     if (node is VariableGet) {
       TreeNode alias = _sourceLoaderDataForTesting.toOriginal(node);
       if (_flowResult.definitelyUnassignedNodes.contains(alias)) {

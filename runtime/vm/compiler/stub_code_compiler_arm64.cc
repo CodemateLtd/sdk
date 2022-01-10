@@ -150,15 +150,14 @@ void StubCodeCompiler::GenerateCallToRuntimeStub(Assembler* assembler) {
   __ StoreToOffset(R2, THR, target::Thread::vm_tag_offset());
 
   // Mark that the thread has not exited generated Dart code.
-  __ LoadImmediate(R2, 0);
-  __ StoreToOffset(R2, THR, target::Thread::exit_through_ffi_offset());
+  __ StoreToOffset(ZR, THR, target::Thread::exit_through_ffi_offset());
 
   // Reset exit frame information in Isolate's mutator thread structure.
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
 
   // Restore the global object pool after returning from runtime (old space is
   // moving, so the GOP could have been relocated).
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     __ SetupGlobalPoolAndDispatchTable();
   }
 
@@ -251,7 +250,8 @@ void StubCodeCompiler::GenerateEnterSafepointStub(Assembler* assembler) {
   __ Ret();
 }
 
-void StubCodeCompiler::GenerateExitSafepointStub(Assembler* assembler) {
+static void GenerateExitSafepointStubCommon(Assembler* assembler,
+                                            uword runtime_entry_offset) {
   RegisterSet all_registers;
   all_registers.AddAllGeneralRegisters();
 
@@ -269,7 +269,7 @@ void StubCodeCompiler::GenerateExitSafepointStub(Assembler* assembler) {
   __ LoadImmediate(R0, target::Thread::vm_execution_state());
   __ str(R0, Address(THR, target::Thread::execution_state_offset()));
 
-  __ ldr(R0, Address(THR, kExitSafepointRuntimeEntry.OffsetFromThread()));
+  __ ldr(R0, Address(THR, runtime_entry_offset));
   __ blr(R0);
 
   __ mov(SP, CALLEE_SAVED_TEMP2);
@@ -279,6 +279,18 @@ void StubCodeCompiler::GenerateExitSafepointStub(Assembler* assembler) {
   __ LeaveFrame();
 
   __ Ret();
+}
+
+void StubCodeCompiler::GenerateExitSafepointStub(Assembler* assembler) {
+  GenerateExitSafepointStubCommon(
+      assembler, kExitSafepointRuntimeEntry.OffsetFromThread());
+}
+
+void StubCodeCompiler::GenerateExitSafepointIgnoreUnwindInProgressStub(
+    Assembler* assembler) {
+  GenerateExitSafepointStubCommon(
+      assembler,
+      kExitSafepointIgnoreUnwindInProgressRuntimeEntry.OffsetFromThread());
 }
 
 // Calls native code within a safepoint.
@@ -722,15 +734,14 @@ static void GenerateCallNativeWithWrapperStub(Assembler* assembler,
   __ StoreToOffset(R2, THR, target::Thread::vm_tag_offset());
 
   // Mark that the thread has not exited generated Dart code.
-  __ LoadImmediate(R2, 0);
-  __ StoreToOffset(R2, THR, target::Thread::exit_through_ffi_offset());
+  __ StoreToOffset(ZR, THR, target::Thread::exit_through_ffi_offset());
 
   // Reset exit frame information in Isolate's mutator thread structure.
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
 
   // Restore the global object pool after returning from runtime (old space is
   // moving, so the GOP could have been relocated).
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     __ SetupGlobalPoolAndDispatchTable();
   }
 
@@ -1389,8 +1400,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeStub(Assembler* assembler) {
 
   __ LoadFromOffset(R6, THR, target::Thread::exit_through_ffi_offset());
   __ Push(R6);
-  __ LoadImmediate(R6, 0);
-  __ StoreToOffset(R6, THR, target::Thread::exit_through_ffi_offset());
+  __ StoreToOffset(ZR, THR, target::Thread::exit_through_ffi_offset());
 
   __ LoadFromOffset(R6, THR, target::Thread::top_exit_frame_info_offset());
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
@@ -1440,7 +1450,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeStub(Assembler* assembler) {
   __ b(&push_arguments, LT);
   __ Bind(&done_push_arguments);
 
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     __ SetupGlobalPoolAndDispatchTable();
     __ mov(CODE_REG, ZR);  // GC-safe value into CODE_REG.
   } else {
@@ -2006,7 +2016,7 @@ void StubCodeCompiler::GenerateAllocateObjectParameterizedStub(
 void StubCodeCompiler::GenerateAllocateObjectSlowStub(Assembler* assembler) {
   const Register kTagsToClsIdReg = R2;
 
-  if (!FLAG_use_bare_instructions) {
+  if (!FLAG_precompiled_mode) {
     __ ldr(CODE_REG,
            Address(THR, target::Thread::call_to_runtime_stub_offset()));
   }
@@ -3095,13 +3105,19 @@ void StubCodeCompiler::GenerateJumpToFrameStub(Assembler* assembler) {
 #endif
   Label exit_through_non_ffi;
   Register tmp1 = R0, tmp2 = R1;
-  // Check if we exited generated from FFI. If so do transition.
+  // Check if we exited generated from FFI. If so do transition - this is needed
+  // because normally runtime calls transition back to generated via destructor
+  // of TransititionGeneratedToVM/Native that is part of runtime boilerplate
+  // code (see DEFINE_RUNTIME_ENTRY_IMPL in runtime_entry.h). Ffi calls don't
+  // have this boilerplate, don't have this stack resource, have to transition
+  // explicitly.
   __ LoadFromOffset(tmp1, THR,
                     compiler::target::Thread::exit_through_ffi_offset());
   __ LoadImmediate(tmp2, target::Thread::exit_through_ffi());
   __ cmp(tmp1, Operand(tmp2));
   __ b(&exit_through_non_ffi, NE);
-  __ TransitionNativeToGenerated(tmp1, /*leave_safepoint=*/true);
+  __ TransitionNativeToGenerated(tmp1, /*leave_safepoint=*/true,
+                                 /*ignore_unwind_in_progress=*/true);
   __ Bind(&exit_through_non_ffi);
 
   // Refresh pinned registers values (inc. write barrier mask and null object).
@@ -3113,7 +3129,7 @@ void StubCodeCompiler::GenerateJumpToFrameStub(Assembler* assembler) {
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
   // Restore the pool pointer.
   __ RestoreCodePointer();
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     __ SetupGlobalPoolAndDispatchTable();
   } else {
     __ LoadPoolPointer();
@@ -3224,8 +3240,8 @@ static void GenerateIdenticalWithNumberCheckStub(Assembler* assembler,
 
   __ Bind(&reference_compare);
   __ CompareObjectRegisters(left, right);
-  // None of the branches above go directly here to avoid generating a conditional 
-  // branch to a ret instruction.
+  // None of the branches above go directly here to avoid generating a
+  // conditional branch to a ret instruction.
   // This is an attempt to work-around a possible CPU on Exynos 2100 SoC.
   // See https://github.com/flutter/flutter/issues/88261
   __ ret();
@@ -3335,7 +3351,7 @@ void StubCodeCompiler::GenerateMegamorphicCallStub(Assembler* assembler) {
   __ ldr(R1, FieldAddress(R0, target::Function::entry_point_offset()));
   __ ldr(ARGS_DESC_REG,
          FieldAddress(R5, target::CallSiteData::arguments_descriptor_offset()));
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     __ LoadCompressed(CODE_REG,
                       FieldAddress(R0, target::Function::code_offset()));
   }
@@ -3388,7 +3404,7 @@ void StubCodeCompiler::GenerateICCallThroughCodeStub(Assembler* assembler) {
   __ b(&loop);
 
   __ Bind(&found);
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     const intptr_t entry_offset =
         target::ICData::EntryPointIndexFor(1) * target::kCompressedWordSize;
     __ LoadCompressed(R1,
@@ -3422,30 +3438,16 @@ void StubCodeCompiler::GenerateMonomorphicSmiableCheckStub(
   Label miss;
   __ LoadClassIdMayBeSmi(IP0, R0);
 
-  if (FLAG_use_bare_instructions) {
-    __ LoadField(
-        IP1, FieldAddress(
-                 R5, target::MonomorphicSmiableCall::expected_cid_offset()));
-    __ LoadField(
-        R1,
-        FieldAddress(R5, target::MonomorphicSmiableCall::entrypoint_offset()));
-    __ cmp(IP0, Operand(IP1));
-    __ b(&miss, NE);
-    __ br(R1);
-  } else {
-    __ LoadField(
-        IP1, FieldAddress(
-                 R5, target::MonomorphicSmiableCall::expected_cid_offset()));
-    __ LoadField(
-        CODE_REG,
-        FieldAddress(R5, target::MonomorphicSmiableCall::target_offset()));
-    __ LoadField(
-        R1,
-        FieldAddress(R5, target::MonomorphicSmiableCall::entrypoint_offset()));
-    __ cmp(IP0, Operand(IP1));
-    __ b(&miss, NE);
-    __ br(R1);
-  }
+  // Note: this stub is only used in AOT mode, hence the direct (bare) call.
+  __ LoadField(
+      IP1,
+      FieldAddress(R5, target::MonomorphicSmiableCall::expected_cid_offset()));
+  __ LoadField(
+      R1,
+      FieldAddress(R5, target::MonomorphicSmiableCall::entrypoint_offset()));
+  __ cmp(IP0, Operand(IP1));
+  __ b(&miss, NE);
+  __ br(R1);
 
   __ Bind(&miss);
   __ ldr(IP0,

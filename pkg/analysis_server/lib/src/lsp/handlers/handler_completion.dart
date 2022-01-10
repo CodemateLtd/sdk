@@ -65,8 +65,9 @@ class CompletionHandler
     final unit = await path.mapResult(requireResolvedUnit);
 
     final lineInfo = await unit.map(
-      // If we don't have a unit, we can still try to obtain the line info for
-      // plugin contributors.
+      // If we don't have a unit, we can still try to obtain the line info from
+      // the server (this could be because the file is non-Dart, such as YAML or
+      // another handled by a plugin).
       (error) => path.mapResult(getLineInfo),
       (unit) => success(unit.lineInfo),
     );
@@ -215,7 +216,7 @@ class CompletionHandler
         );
         server.performanceStats.completion.add(completionPerformance);
 
-        final completionRequest = DartCompletionRequest(
+        final completionRequest = DartCompletionRequest.forResolvedUnit(
           resolvedUnit: unit,
           offset: offset,
           dartdocDirectiveInfo: server.getDartdocDirectiveInfoFor(unit),
@@ -482,7 +483,9 @@ class CompletionHandler
     return (node is ast.InvocationExpression &&
             !node.argumentList.beginToken.isSynthetic) ||
         (node is ast.InstanceCreationExpression &&
-            !node.argumentList.beginToken.isSynthetic);
+            !node.argumentList.beginToken.isSynthetic) ||
+        // "ClassName.^()" will appear as accessing a property named '('.
+        (node is ast.PropertyAccess && node.propertyName.name.startsWith('('));
   }
 
   Iterable<CompletionItem> _pluginResultsToItems(

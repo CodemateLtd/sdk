@@ -1135,18 +1135,18 @@ UnboxedConstantInstr::UnboxedConstantInstr(const Object& value,
 
 // Returns true if the value represents a constant.
 bool Value::BindsToConstant() const {
-  return definition()->IsConstant();
+  return definition()->OriginalDefinition()->IsConstant();
 }
 
 // Returns true if the value represents constant null.
 bool Value::BindsToConstantNull() const {
-  ConstantInstr* constant = definition()->AsConstant();
+  ConstantInstr* constant = definition()->OriginalDefinition()->AsConstant();
   return (constant != NULL) && constant->value().IsNull();
 }
 
 const Object& Value::BoundConstant() const {
   ASSERT(BindsToConstant());
-  ConstantInstr* constant = definition()->AsConstant();
+  ConstantInstr* constant = definition()->OriginalDefinition()->AsConstant();
   ASSERT(constant != NULL);
   return constant->value();
 }
@@ -1207,7 +1207,7 @@ bool GraphEntryInstr::IsCompiledForOsr() const {
 // ==== Support for visiting flow graphs.
 
 #define DEFINE_ACCEPT(ShortName, Attrs)                                        \
-  void ShortName##Instr::Accept(FlowGraphVisitor* visitor) {                   \
+  void ShortName##Instr::Accept(InstructionVisitor* visitor) {                 \
     visitor->Visit##ShortName(this);                                           \
   }
 
@@ -1299,12 +1299,15 @@ BlockEntryInstr* Instruction::GetBlock() {
   // TODO(fschneider): Implement a faster way to get the block of an
   // instruction.
   Instruction* result = previous();
-  ASSERT(result != nullptr);
-  while (!result->IsBlockEntry()) {
+  while ((result != nullptr) && !result->IsBlockEntry()) {
     result = result->previous();
-    ASSERT(result != nullptr);
   }
-  return result->AsBlockEntry();
+  // InlineExitCollector::RemoveUnreachableExits may call
+  // Instruction::GetBlock on instructions which are not properly linked
+  // to the flow graph (as collected exits may belong to unreachable
+  // fragments), so this code should gracefully handle the absence of
+  // BlockEntry.
+  return (result != nullptr) ? result->AsBlockEntry() : nullptr;
 }
 
 void ForwardInstructionIterator::RemoveCurrentFromGraph() {
@@ -2545,7 +2548,8 @@ Definition* RedefinitionInstr::Canonicalize(FlowGraph* flow_graph) {
   if (!HasUses() && !flow_graph->is_licm_allowed()) {
     return NULL;
   }
-  if ((constrained_type() != nullptr) && Type()->IsEqualTo(value()->Type())) {
+  if (constrained_type() != nullptr &&
+      constrained_type()->IsEqualTo(value()->Type())) {
     return value()->definition();
   }
   return this;
@@ -4139,10 +4143,25 @@ void IndirectEntryInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
 LocationSummary* LoadStaticFieldInstr::MakeLocationSummary(Zone* zone,
                                                            bool opt) const {
   const intptr_t kNumInputs = 0;
-  const intptr_t kNumTemps = 0;
+  const bool use_shared_stub = UseSharedSlowPathStub(opt);
+  const intptr_t kNumTemps = calls_initializer() &&
+                                     throw_exception_on_initialization() &&
+                                     use_shared_stub
+                                 ? 1
+                                 : 0;
   LocationSummary* locs = new (zone) LocationSummary(
       zone, kNumInputs, kNumTemps,
-      calls_initializer() ? LocationSummary::kCall : LocationSummary::kNoCall);
+      calls_initializer()
+          ? (throw_exception_on_initialization()
+                 ? (use_shared_stub ? LocationSummary::kCallOnSharedSlowPath
+                                    : LocationSummary::kCallOnSlowPath)
+                 : LocationSummary::kCall)
+          : LocationSummary::kNoCall);
+  if (calls_initializer() && throw_exception_on_initialization() &&
+      use_shared_stub) {
+    locs->set_temp(
+        0, Location::RegisterLocation(LateInitializationErrorABI::kFieldReg));
+  }
   locs->set_out(0, calls_initializer() ? Location::RegisterLocation(
                                              InitStaticFieldABI::kResultReg)
                                        : Location::RequiresRegister());
@@ -4163,26 +4182,50 @@ void LoadStaticFieldInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   __ LoadMemoryValue(result, result, static_cast<int32_t>(field_offset));
 
   if (calls_initializer()) {
-    compiler::Label call_runtime, no_call;
-    __ CompareObject(result, Object::sentinel());
+    if (throw_exception_on_initialization()) {
+      ThrowErrorSlowPathCode* slow_path =
+          new LateInitializationErrorSlowPath(this);
+      compiler->AddSlowPathCode(slow_path);
 
+      __ CompareObject(result, Object::sentinel());
+      __ BranchIf(EQUAL, slow_path->entry_label());
+      return;
+    }
+    ASSERT(field().has_initializer());
+    auto object_store = compiler->isolate_group()->object_store();
+    const Field& original_field = Field::ZoneHandle(field().Original());
+
+    compiler::Label no_call, call_initializer;
+    __ CompareObject(result, Object::sentinel());
     if (!field().is_late()) {
-      __ BranchIf(EQUAL, &call_runtime);
+      __ BranchIf(EQUAL, &call_initializer);
       __ CompareObject(result, Object::transition_sentinel());
     }
-
     __ BranchIf(NOT_EQUAL, &no_call);
 
-    __ Bind(&call_runtime);
-    __ LoadObject(InitStaticFieldABI::kFieldReg,
-                  Field::ZoneHandle(field().Original()));
+    auto& stub = Code::ZoneHandle(compiler->zone());
+    __ Bind(&call_initializer);
+    if (field().needs_load_guard()) {
+      stub = object_store->init_static_field_stub();
+    } else if (field().is_late()) {
+      // The stubs below call the initializer function directly, so make sure
+      // one is created.
+      original_field.EnsureInitializerFunction();
+      stub = field().is_final()
+                 ? object_store->init_late_final_static_field_stub()
+                 : object_store->init_late_static_field_stub();
+    } else {
+      // We call to runtime for non-late fields because the stub would need to
+      // catch any exception generated by the initialization function to change
+      // the value of the static field from the transition sentinel to null.
+      stub = object_store->init_static_field_stub();
+    }
 
-    auto object_store = compiler->isolate_group()->object_store();
-    const auto& init_static_field_stub = Code::ZoneHandle(
-        compiler->zone(), object_store->init_static_field_stub());
-    compiler->GenerateStubCall(source(), init_static_field_stub,
+    __ LoadObject(InitStaticFieldABI::kFieldReg, original_field);
+    compiler->GenerateStubCall(source(), stub,
                                /*kind=*/UntaggedPcDescriptors::kOther, locs(),
                                deopt_id(), env());
+
     __ Bind(&no_call);
   }
 }
@@ -4220,7 +4263,6 @@ void LoadFieldInstr::EmitNativeCodeForInitializerCall(
     stub = object_store->init_instance_field_stub();
   } else if (field.is_late()) {
     if (!field.has_nontrivial_initializer()) {
-      // Common stub calls runtime which will throw an exception.
       stub = object_store->init_instance_field_stub();
     } else {
       // Stubs for late field initialization call initializer
@@ -5919,8 +5961,43 @@ Definition* PhiInstr::GetReplacementForRedundantPhi() const {
   }
 }
 
+static bool AllInputsAreRedefinitions(PhiInstr* phi) {
+  for (intptr_t i = 0; i < phi->InputCount(); i++) {
+    if (phi->InputAt(i)->definition()->RedefinedValue() == nullptr) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Definition* PhiInstr::Canonicalize(FlowGraph* flow_graph) {
   Definition* replacement = GetReplacementForRedundantPhi();
+  if (replacement != nullptr && flow_graph->is_licm_allowed() &&
+      AllInputsAreRedefinitions(this)) {
+    // If we are replacing a Phi which has redefinitions as all of its inputs
+    // then to maintain the redefinition chain we are going to insert a
+    // redefinition. If any input is *not* a redefinition that means that
+    // whatever properties were infered for a Phi also hold on a path
+    // that does not pass through any redefinitions so there is no need
+    // to redefine this value.
+    auto zone = flow_graph->zone();
+    auto redef = new (zone) RedefinitionInstr(new (zone) Value(replacement));
+    flow_graph->InsertAfter(block(), redef, /*env=*/nullptr, FlowGraph::kValue);
+
+    // Redefinition is not going to dominate the block entry itself, so we
+    // have to handle environment uses at the block entry specially.
+    Value* next_use;
+    for (Value* use = env_use_list(); use != nullptr; use = next_use) {
+      next_use = use->next_use();
+      if (use->instruction() == block()) {
+        use->RemoveFromUseList();
+        use->set_definition(replacement);
+        replacement->AddEnvUse(use);
+      }
+    }
+    return redef;
+  }
+
   return (replacement != nullptr) ? replacement : this;
 }
 

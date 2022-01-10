@@ -1323,7 +1323,7 @@ Future<int> f() async {
 ### body_might_complete_normally
 
 _The body might complete normally, causing 'null' to be returned, but the return
-type is a potentially non-nullable type._
+type, '{0}', is a potentially non-nullable type._
 
 #### Description
 
@@ -1384,13 +1384,15 @@ class C<T> {
 }
 {% endprettify %}
 
-If the method intentionally returns `null` at the end, then change the
+If the method intentionally returns `null` at the end, then add an
+explicit return of `null` at the end of the method and change the
 return type so that it's valid to return `null`:
 
 {% prettify dart tag=pre+code %}
 class C<T> {
   T? m(T t) {
     print(t);
+    return null;
   }
 }
 {% endprettify %}
@@ -6518,7 +6520,7 @@ _Publishable packages can't have '{0}' dependencies._
 #### Description
 
 The analyzer produces this diagnostic when a package under either
-`dependencies` or `dev_dependencies` is not a pub, `git`, or `path` based
+`dependencies` or `dev_dependencies` isn't a pub, `git`, or `path` based
 dependency.
 
 See [Package dependencies](https://dart.dev/tools/pub/dependencies) for
@@ -6527,7 +6529,7 @@ more information about the kind of dependencies that are supported.
 #### Example
 
 The following code produces this diagnostic because the dependency on the
-package `transmogrify` is not a pub, `git`, or `path` based dependency:
+package `transmogrify` isn't a pub, `git`, or `path` based dependency:
 
 ```yaml
 name: example
@@ -6968,7 +6970,7 @@ operator following `s` short-circuits the evaluation of both `length` and
 `isEven` if `s` is `null`. In other words, if `s` is `null`, then neither
 `length` nor `isEven` will be invoked, and if `s` is non-`null`, then
 `length` can't return a `null` value. Either way, `isEven` can't be invoked
-on a `null` value, so the null-aware operator is not necessary. See
+on a `null` value, so the null-aware operator isn't necessary. See
 [Understanding null safety](/null-safety/understanding-null-safety#smarter-null-aware-methods)
 for more details.
 
@@ -8039,6 +8041,8 @@ Reinstall the Dart or Flutter SDK.
 
 _The parameter '{0}' can't have a value of 'null' because of its type, but the
 implicit default value is 'null'._
+
+_With null safety, use the 'required' keyword, not the '@required' annotation._
 
 #### Description
 
@@ -13019,6 +13023,82 @@ void f() {
 
 Tear off the constructor of a concrete class.
 
+### text_direction_code_point_in_comment
+
+_The Unicode code point 'U+{0}' changes the appearance of text from how it's
+interpreted by the compiler._
+
+#### Description
+
+The analyzer produces this diagnostic when it encounters source that
+contains text direction Unicode code points. These code points cause
+source code in either a string literal or a comment to be interpreted
+and compiled differently than how it appears in editors, leading to
+possible security vulnerabilities.
+
+#### Example
+
+The following code produces this diagnostic twice because there are
+hidden characters at the start and end of the label string:
+
+{% prettify dart tag=pre+code %}
+var label = '[!I!]nteractive text[!'!];
+{% endprettify %}
+
+#### Common fixes
+
+If the code points are intended to be included in the string literal,
+then escape them:
+
+{% prettify dart tag=pre+code %}
+var label = '\u202AInteractive text\u202C';
+{% endprettify %}
+
+If the code points aren't intended to be included in the string literal,
+then remove them:
+
+{% prettify dart tag=pre+code %}
+var label = 'Interactive text';
+{% endprettify %}
+
+### text_direction_code_point_in_literal
+
+_The Unicode code point 'U+{0}' changes the appearance of text from how it's
+interpreted by the compiler._
+
+#### Description
+
+The analyzer produces this diagnostic when it encounters source that
+contains text direction Unicode code points. These code points cause
+source code in either a string literal or a comment to be interpreted
+and compiled differently than how it appears in editors, leading to
+possible security vulnerabilities.
+
+#### Example
+
+The following code produces this diagnostic twice because there are
+hidden characters at the start and end of the label string:
+
+{% prettify dart tag=pre+code %}
+var label = '[!I!]nteractive text[!'!];
+{% endprettify %}
+
+#### Common fixes
+
+If the code points are intended to be included in the string literal,
+then escape them:
+
+{% prettify dart tag=pre+code %}
+var label = '\u202AInteractive text\u202C';
+{% endprettify %}
+
+If the code points aren't intended to be included in the string literal,
+then remove them:
+
+{% prettify dart tag=pre+code %}
+var label = 'Interactive text';
+{% endprettify %}
+
 ### throw_of_invalid_type
 
 _The type '{0}' of the thrown expression must be assignable to 'Object'._
@@ -14331,7 +14411,7 @@ the imported libraries.
 
 ### undefined_referenced_parameter
 
-_The parameter '{0}' is not defined by '{1}'._
+_The parameter '{0}' isn't defined by '{1}'._
 
 #### Description
 

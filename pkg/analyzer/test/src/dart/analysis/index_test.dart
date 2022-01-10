@@ -1115,6 +1115,32 @@ void main() {
     // No exceptions.
   }
 
+  test_isReferencedBy_ParameterElement_ofConstructor_super_named() async {
+    await _indexTestUnit('''
+class A {
+  A({required int a});
+}
+class B extends A {
+  B({required super.a}); // ref
+}
+''');
+    var element = findElement.unnamedConstructor('A').parameter('a');
+    assertThat(element)..isReferencedAt('a}); // ref', true);
+  }
+
+  test_isReferencedBy_ParameterElement_ofConstructor_super_positional() async {
+    await _indexTestUnit('''
+class A {
+  A(int a);
+}
+class B extends A {
+  B(super.a); // ref
+}
+''');
+    var element = findElement.unnamedConstructor('A').parameter('a');
+    assertThat(element)..isReferencedAt('a); // ref', true);
+  }
+
   test_isReferencedBy_ParameterElement_optionalNamed_ofConstructor_genericClass() async {
     await _indexTestUnit('''
 class A<T> {
@@ -1149,6 +1175,18 @@ void foo({int? test}) {}
 
 void() {
   foo(test: 0);
+}
+''');
+    Element element = findElement.parameter('test');
+    assertThat(element)..isReferencedAt('test: 0', true);
+  }
+
+  test_isReferencedBy_ParameterElement_optionalNamed_ofTopFunction_anywhere() async {
+    await _indexTestUnit('''
+void foo(int a, int b, {int? test}) {}
+
+void() {
+  foo(1, test: 0, 2);
 }
 ''');
     Element element = findElement.parameter('test');

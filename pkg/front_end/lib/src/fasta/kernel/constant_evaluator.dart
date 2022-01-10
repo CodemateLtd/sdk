@@ -1999,14 +1999,12 @@ class ConstantEvaluator implements ExpressionVisitor<Constant> {
               statement.condition,
               templateConstEvalFailedAssertionWithMessage
                   .withArguments(message.value));
-        } else {
+        } else if (message is NullConstant) {
           return createEvaluationErrorConstant(
-              statement.message!,
-              templateConstEvalInvalidType.withArguments(
-                  message,
-                  typeEnvironment.coreTypes.stringLegacyRawType,
-                  message.getType(_staticTypeContext!),
-                  isNonNullableByDefault));
+              statement.condition, messageConstEvalFailedAssertion);
+        } else {
+          return createEvaluationErrorConstant(statement.message!,
+              messageConstEvalFailedAssertionWithNonStringMessage);
         }
       }
     } else {
@@ -2464,9 +2462,8 @@ class ConstantEvaluator implements ExpressionVisitor<Constant> {
             functionEnvironment: receiver.environment);
       } else if (receiver is InstanceConstant) {
         final Class instanceClass = receiver.classNode;
-        assert(typeEnvironment.hierarchy is ClassHierarchy);
-        final Member member = (typeEnvironment.hierarchy as ClassHierarchy)
-            .getDispatchTarget(instanceClass, name)!;
+        final Member member =
+            typeEnvironment.hierarchy.getDispatchTarget(instanceClass, name)!;
         final FunctionNode? function = member.function;
 
         // TODO(kallentu): Implement [Object] class methods which have backend

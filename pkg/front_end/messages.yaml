@@ -189,6 +189,10 @@ ConstEvalFailedAssertionWithMessage:
   problemMessage: "This assertion failed with message: #stringOKEmpty"
   analyzerCode: CONST_EVAL_THROWS_EXCEPTION
 
+ConstEvalFailedAssertionWithNonStringMessage:
+  problemMessage: "This assertion failed with a non-String message."
+  analyzerCode: CONST_EVAL_THROWS_EXCEPTION
+
 ConstEvalNonConstantVariableGet:
   problemMessage: "The variable '#nameOKEmpty' is not a constant, only constant expressions are allowed."
   analyzerCode: NON_CONSTANT_VALUE_IN_INITIALIZER
@@ -280,16 +284,6 @@ ExperimentNotEnabled:
   index: 48
   problemMessage: "This requires the '#string' language feature to be enabled."
   correctionMessage: "Try updating your pubspec.yaml to set the minimum SDK constraint to #string2 or higher, and running 'pub get'."
-  analyzerCode: ParserErrorCode.EXPERIMENT_NOT_ENABLED
-
-ExperimentNotEnabledNoFlag:
-  problemMessage: "This requires the null safety language feature, which is experimental."
-  correctionMessage: "You can enable the experiment using the '--enable-experiment=non-nullable' command line option."
-  analyzerCode: ParserErrorCode.EXPERIMENT_NOT_ENABLED
-
-ExperimentNotEnabledNoFlagInvalidLanguageVersion:
-  problemMessage: "This requires the null safety language feature, which is experimental and requires language version of #string2 or higher."
-  correctionMessage: "You can enable the experiment using the '--enable-experiment=non-nullable' command line option."
   analyzerCode: ParserErrorCode.EXPERIMENT_NOT_ENABLED
 
 ExperimentDisabled:
@@ -2077,6 +2071,10 @@ InternalProblemUnfinishedTypeVariable:
 
 InternalProblemUnsupportedNullability:
   problemMessage: "Unsupported nullability value '#string' on type '#type'."
+  severity: INTERNAL_PROBLEM
+
+InternalProblemOmittedTypeNameInConstructorReference:
+  problemMessage: "Unsupported omission of the type name in a constructor reference outside of an enum element declaration."
   severity: INTERNAL_PROBLEM
 
 IncrementalCompilerIllegalParameter:
@@ -4560,6 +4558,16 @@ StaticAndInstanceConflictCause:
   problemMessage: "This is the instance member."
   severity: CONTEXT
 
+FfiAbiSpecificIntegerInvalid:
+  # Used by dart:ffi
+  problemMessage: "Classes extending 'AbiSpecificInteger' must have exactly one const constructor, no other members, and no type arguments."
+  external: test/ffi_test.dart
+
+FfiAbiSpecificIntegerMappingInvalid:
+  # Used by dart:ffi
+  problemMessage: "Classes extending 'AbiSpecificInteger' must have exactly one 'AbiSpecificIntegerMapping' annotation specifying the mapping from ABI to a NativeType integer with a fixed size."
+  external: test/ffi_test.dart
+
 FfiTypeMismatch:
   # Used by dart:ffi
   problemMessage: "Expected type '#type' to be '#type2', which is the Dart type corresponding to '#type3'."
@@ -5446,3 +5454,14 @@ NewAsSelector:
   experiments: constructor-tearoffs
   script: |
     method(dynamic d) => d.new;
+
+EnumDeclaresFactory:
+  problemMessage: "Enums can't declare factory constructors."
+  correctionMessage: "Try removing the factory constructor declaration."
+
+PositionalSuperParametersAndArguments:
+  problemMessage: "Positional super-initializer parameters cannot be used when the super initializer has positional arguments."
+
+SuperInitializerParameter:
+  problemMessage: "This is the super-initializer parameter."
+  severity: CONTEXT

@@ -2,10 +2,13 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:collection';
+
 import 'package:analysis_server/src/protocol_server.dart';
 import 'package:analysis_server/src/provisional/completion/completion_core.dart';
 import 'package:analysis_server/src/provisional/completion/dart/completion_dart.dart';
 import 'package:analysis_server/src/services/completion/dart/arglist_contributor.dart';
+import 'package:analysis_server/src/services/completion/dart/closure_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/combinator_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/documentation_cache.dart';
 import 'package:analysis_server/src/services/completion/dart/extension_member_contributor.dart';
@@ -25,6 +28,7 @@ import 'package:analysis_server/src/services/completion/dart/redirecting_contrib
 import 'package:analysis_server/src/services/completion/dart/relevance_tables.g.dart';
 import 'package:analysis_server/src/services/completion/dart/static_member_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/suggestion_builder.dart';
+import 'package:analysis_server/src/services/completion/dart/super_formal_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/type_member_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/uri_contributor.dart';
 import 'package:analysis_server/src/services/completion/dart/variable_name_contributor.dart';
@@ -95,7 +99,7 @@ class DartCompletionManager {
   /// that are not yet imported, but could be imported into the requested
   /// target. It is up to the client to make copies of [CompletionSuggestion]s
   /// with the import index property updated.
-  final Map<protocol.CompletionSuggestion, Uri>? notImportedSuggestions;
+  final NotImportedSuggestions? notImportedSuggestions;
 
   /// Initialize a newly created completion manager. The parameters
   /// [includedElementKinds], [includedElementNames], and
@@ -138,6 +142,7 @@ class DartCompletionManager {
     var builder = SuggestionBuilder(request, listener: listener);
     var contributors = <DartCompletionContributor>[
       ArgListContributor(request, builder),
+      ClosureContributor(request, builder),
       CombinatorContributor(request, builder),
       ExtensionMemberContributor(request, builder),
       FieldFormalContributor(request, builder),
@@ -151,6 +156,7 @@ class DartCompletionManager {
       if (enableOverrideContributor) OverrideContributor(request, builder),
       RedirectingContributor(request, builder),
       StaticMemberContributor(request, builder),
+      SuperFormalContributor(request, builder),
       TypeMemberContributor(request, builder),
       if (enableUriContributor) UriContributor(request, builder),
       VariableNameContributor(request, builder),
@@ -328,17 +334,22 @@ class DartCompletionRequest {
   bool _aborted = false;
 
   factory DartCompletionRequest({
-    required ResolvedUnitResult resolvedUnit,
+    required AnalysisSession analysisSession,
+    required String filePath,
+    required String fileContent,
+    required CompilationUnitElement unitElement,
+    required AstNode enclosingNode,
     required int offset,
     DartdocDirectiveInfo? dartdocDirectiveInfo,
     CompletionPreference completionPreference = CompletionPreference.insert,
     DocumentationCache? documentationCache,
   }) {
-    var target = CompletionTarget.forOffset(resolvedUnit.unit, offset);
+    var target = CompletionTarget.forOffset(enclosingNode, offset);
 
+    var libraryElement = unitElement.library;
     var featureComputer = FeatureComputer(
-      resolvedUnit.typeSystem,
-      resolvedUnit.typeProvider,
+      libraryElement.typeSystem,
+      libraryElement.typeProvider,
     );
 
     var contextType = featureComputer.computeContextType(
@@ -352,20 +363,40 @@ class DartCompletionRequest {
     }
 
     return DartCompletionRequest._(
-      analysisSession: resolvedUnit.session as AnalysisSessionImpl,
+      analysisSession: analysisSession as AnalysisSessionImpl,
       completionPreference: completionPreference,
-      content: resolvedUnit.content,
+      content: fileContent,
       contextType: contextType,
       dartdocDirectiveInfo: dartdocDirectiveInfo ?? DartdocDirectiveInfo(),
       documentationCache: documentationCache,
       featureComputer: featureComputer,
-      libraryElement: resolvedUnit.libraryElement,
+      libraryElement: libraryElement,
       offset: offset,
       opType: opType,
-      path: resolvedUnit.path,
+      path: filePath,
       replacementRange: target.computeReplacementRange(offset),
-      source: resolvedUnit.unit.declaredElement!.source,
+      source: unitElement.source,
       target: target,
+    );
+  }
+
+  factory DartCompletionRequest.forResolvedUnit({
+    required ResolvedUnitResult resolvedUnit,
+    required int offset,
+    DartdocDirectiveInfo? dartdocDirectiveInfo,
+    CompletionPreference completionPreference = CompletionPreference.insert,
+    DocumentationCache? documentationCache,
+  }) {
+    return DartCompletionRequest(
+      analysisSession: resolvedUnit.session,
+      filePath: resolvedUnit.path,
+      fileContent: resolvedUnit.content,
+      unitElement: resolvedUnit.unit.declaredElement!,
+      enclosingNode: resolvedUnit.unit,
+      offset: offset,
+      dartdocDirectiveInfo: dartdocDirectiveInfo,
+      completionPreference: completionPreference,
+      documentationCache: documentationCache,
     );
   }
 
@@ -470,4 +501,13 @@ class DartCompletionRequest {
       throw AbortCompletion();
     }
   }
+}
+
+/// Information provided by [NotImportedContributor] in addition to suggestions.
+class NotImportedSuggestions {
+  final Map<protocol.CompletionSuggestion, Uri> map = HashMap.identity();
+
+  /// This flag is set to `true` if the contributor decided to stop before it
+  /// processed all available libraries, e.g. we ran out of budget.
+  bool isIncomplete = false;
 }

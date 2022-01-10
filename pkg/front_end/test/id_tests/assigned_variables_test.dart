@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.9
-
 import 'dart:io' show Directory, Platform;
 
 import 'package:_fe_analyzer_shared/src/flow_analysis/flow_analysis.dart';
@@ -11,9 +9,8 @@ import 'package:_fe_analyzer_shared/src/testing/id.dart'
     show ActualData, Id, IdKind;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, runTests;
-import 'package:front_end/src/fasta/builder/member_builder.dart';
 import 'package:front_end/src/fasta/source/source_loader.dart';
-
+import 'package:front_end/src/fasta/source/source_member_builder.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
 import 'package:kernel/ast.dart' hide Variance;
@@ -41,20 +38,18 @@ class AssignedVariablesDataComputer extends DataComputer<_Data> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<_Data>> actualMap,
-      {bool verbose}) {
-    MemberBuilderImpl memberBuilder =
-        lookupMemberBuilder(compilerResult, member);
-    AssignedVariablesForTesting<TreeNode, VariableDeclaration>
+      {bool? verbose}) {
+    SourceMemberBuilder memberBuilder =
+        lookupMemberBuilder(testResultData.compilerResult, member)
+            as SourceMemberBuilder;
+    AssignedVariablesForTesting<TreeNode, VariableDeclaration>?
         assignedVariables = memberBuilder
-            .dataForTesting.inferenceData.flowAnalysisResult.assignedVariables;
+            .dataForTesting!.inferenceData.flowAnalysisResult.assignedVariables;
     if (assignedVariables == null) return;
     member.accept(new AssignedVariablesDataExtractor(
-        compilerResult, actualMap, assignedVariables));
+        testResultData.compilerResult, actualMap, assignedVariables));
   }
 }
 
@@ -66,7 +61,7 @@ class AssignedVariablesDataExtractor extends CfeDataExtractor<_Data> {
   AssignedVariablesDataExtractor(InternalCompilerResult compilerResult,
       Map<Id, ActualData<_Data>> actualMap, this._assignedVariables)
       : _sourceLoaderDataForTesting =
-            compilerResult.kernelTargetForTesting.loader.dataForTesting,
+            compilerResult.kernelTargetForTesting!.loader.dataForTesting!,
         super(compilerResult, actualMap);
 
   @override
@@ -80,10 +75,10 @@ class AssignedVariablesDataExtractor extends CfeDataExtractor<_Data> {
   }
 
   Set<String> _convertVars(Iterable<VariableDeclaration> x) =>
-      x.map((e) => e.name).toSet();
+      x.map((e) => e.name!).toSet();
 
   @override
-  _Data computeNodeValue(Id id, TreeNode node) {
+  _Data? computeNodeValue(Id id, TreeNode node) {
     switch (id.kind) {
       case IdKind.iterator:
       case IdKind.current:
@@ -106,7 +101,7 @@ class _AssignedVariablesDataInterpreter implements DataInterpreter<_Data> {
   const _AssignedVariablesDataInterpreter();
 
   @override
-  String getText(_Data actualData, [String indentation]) {
+  String getText(_Data actualData, [String? indentation]) {
     var parts = <String>[];
     if (actualData.declared.isNotEmpty) {
       parts.add('declared=${_setToString(actualData.declared)}');
@@ -128,7 +123,7 @@ class _AssignedVariablesDataInterpreter implements DataInterpreter<_Data> {
   }
 
   @override
-  String isAsExpected(_Data actualData, String expectedData) {
+  String? isAsExpected(_Data actualData, String? expectedData) {
     var actualDataText = getText(actualData);
     if (actualDataText == expectedData) {
       return null;

@@ -622,7 +622,9 @@ void Assembler::TransitionGeneratedToNative(Register destination_address,
   }
 }
 
-void Assembler::ExitFullSafepoint(Register tmp1, Register tmp2) {
+void Assembler::ExitFullSafepoint(Register tmp1,
+                                  Register tmp2,
+                                  bool ignore_unwind_in_progress) {
   Register addr = tmp1;
   Register state = tmp2;
 
@@ -650,7 +652,14 @@ void Assembler::ExitFullSafepoint(Register tmp1, Register tmp2) {
   }
 
   Bind(&slow_path);
-  ldr(TMP, Address(THR, target::Thread::exit_safepoint_stub_offset()));
+  if (ignore_unwind_in_progress) {
+    ldr(TMP,
+        Address(THR,
+                target::Thread::
+                    exit_safepoint_ignore_unwind_in_progress_stub_offset()));
+  } else {
+    ldr(TMP, Address(THR, target::Thread::exit_safepoint_stub_offset()));
+  }
   ldr(TMP, FieldAddress(TMP, target::Code::entry_point_offset()));
   blx(TMP);
 
@@ -659,10 +668,13 @@ void Assembler::ExitFullSafepoint(Register tmp1, Register tmp2) {
 
 void Assembler::TransitionNativeToGenerated(Register addr,
                                             Register state,
-                                            bool exit_safepoint) {
+                                            bool exit_safepoint,
+                                            bool ignore_unwind_in_progress) {
   if (exit_safepoint) {
-    ExitFullSafepoint(addr, state);
+    ExitFullSafepoint(addr, state, ignore_unwind_in_progress);
   } else {
+    // flag only makes sense if we are leaving safepoint
+    ASSERT(!ignore_unwind_in_progress);
 #if defined(DEBUG)
     // Ensure we've already left the safepoint.
     ASSERT(target::Thread::full_safepoint_state_acquired() != 0);
@@ -702,7 +714,6 @@ void Assembler::nop(Condition cond) {
 }
 
 void Assembler::vmovsr(SRegister sn, Register rt, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sn != kNoSRegister);
   ASSERT(rt != kNoRegister);
   ASSERT(rt != SP);
@@ -716,7 +727,6 @@ void Assembler::vmovsr(SRegister sn, Register rt, Condition cond) {
 }
 
 void Assembler::vmovrs(Register rt, SRegister sn, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sn != kNoSRegister);
   ASSERT(rt != kNoRegister);
   ASSERT(rt != SP);
@@ -733,7 +743,6 @@ void Assembler::vmovsrr(SRegister sm,
                         Register rt,
                         Register rt2,
                         Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sm != kNoSRegister);
   ASSERT(sm != S31);
   ASSERT(rt != kNoRegister);
@@ -755,7 +764,6 @@ void Assembler::vmovrrs(Register rt,
                         Register rt2,
                         SRegister sm,
                         Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sm != kNoSRegister);
   ASSERT(sm != S31);
   ASSERT(rt != kNoRegister);
@@ -775,7 +783,6 @@ void Assembler::vmovrrs(Register rt,
 }
 
 void Assembler::vmovdr(DRegister dn, int i, Register rt, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT((i == 0) || (i == 1));
   ASSERT(rt != kNoRegister);
   ASSERT(rt != SP);
@@ -793,7 +800,6 @@ void Assembler::vmovdrr(DRegister dm,
                         Register rt,
                         Register rt2,
                         Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(dm != kNoDRegister);
   ASSERT(rt != kNoRegister);
   ASSERT(rt != SP);
@@ -814,7 +820,6 @@ void Assembler::vmovrrd(Register rt,
                         Register rt2,
                         DRegister dm,
                         Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(dm != kNoDRegister);
   ASSERT(rt != kNoRegister);
   ASSERT(rt != SP);
@@ -833,7 +838,6 @@ void Assembler::vmovrrd(Register rt,
 }
 
 void Assembler::vldrs(SRegister sd, Address ad, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sd != kNoSRegister);
   ASSERT(cond != kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) | B27 |
@@ -844,7 +848,6 @@ void Assembler::vldrs(SRegister sd, Address ad, Condition cond) {
 }
 
 void Assembler::vstrs(SRegister sd, Address ad, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(static_cast<Register>(ad.encoding_ & (0xf << kRnShift)) != PC);
   ASSERT(sd != kNoSRegister);
   ASSERT(cond != kNoCondition);
@@ -856,7 +859,6 @@ void Assembler::vstrs(SRegister sd, Address ad, Condition cond) {
 }
 
 void Assembler::vldrd(DRegister dd, Address ad, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(dd != kNoDRegister);
   ASSERT(cond != kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) | B27 |
@@ -867,7 +869,6 @@ void Assembler::vldrd(DRegister dd, Address ad, Condition cond) {
 }
 
 void Assembler::vstrd(DRegister dd, Address ad, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(static_cast<Register>(ad.encoding_ & (0xf << kRnShift)) != PC);
   ASSERT(dd != kNoDRegister);
   ASSERT(cond != kNoCondition);
@@ -884,7 +885,6 @@ void Assembler::EmitMultiVSMemOp(Condition cond,
                                  Register base,
                                  SRegister start,
                                  uint32_t count) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(base != kNoRegister);
   ASSERT(cond != kNoCondition);
   ASSERT(start != kNoSRegister);
@@ -904,7 +904,6 @@ void Assembler::EmitMultiVDMemOp(Condition cond,
                                  Register base,
                                  DRegister start,
                                  int32_t count) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(base != kNoRegister);
   ASSERT(cond != kNoCondition);
   ASSERT(start != kNoDRegister);
@@ -966,7 +965,6 @@ void Assembler::EmitVFPsss(Condition cond,
                            SRegister sd,
                            SRegister sn,
                            SRegister sm) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sd != kNoSRegister);
   ASSERT(sn != kNoSRegister);
   ASSERT(sm != kNoSRegister);
@@ -986,7 +984,6 @@ void Assembler::EmitVFPddd(Condition cond,
                            DRegister dd,
                            DRegister dn,
                            DRegister dm) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(dd != kNoDRegister);
   ASSERT(dn != kNoDRegister);
   ASSERT(dm != kNoDRegister);
@@ -1149,7 +1146,6 @@ void Assembler::EmitVFPsd(Condition cond,
                           int32_t opcode,
                           SRegister sd,
                           DRegister dm) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(sd != kNoSRegister);
   ASSERT(dm != kNoDRegister);
   ASSERT(cond != kNoCondition);
@@ -1165,7 +1161,6 @@ void Assembler::EmitVFPds(Condition cond,
                           int32_t opcode,
                           DRegister dd,
                           SRegister sm) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(dd != kNoDRegister);
   ASSERT(sm != kNoSRegister);
   ASSERT(cond != kNoCondition);
@@ -1234,7 +1229,6 @@ void Assembler::vcmpdz(DRegister dd, Condition cond) {
 }
 
 void Assembler::vmrs(Register rd, Condition cond) {
-  ASSERT(TargetCPUFeatures::vfp_supported());
   ASSERT(cond != kNoCondition);
   int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) | B27 |
                      B26 | B25 | B23 | B22 | B21 | B20 | B16 |
@@ -1620,12 +1614,10 @@ void Assembler::LoadPoolPointer(Register reg) {
 }
 
 void Assembler::SetupGlobalPoolAndDispatchTable() {
-  ASSERT(FLAG_precompiled_mode && FLAG_use_bare_instructions);
+  ASSERT(FLAG_precompiled_mode);
   ldr(PP, Address(THR, target::Thread::global_object_pool_offset()));
-  if (FLAG_use_table_dispatch) {
-    ldr(DISPATCH_TABLE_REG,
-        Address(THR, target::Thread::dispatch_table_array_offset()));
-  }
+  ldr(DISPATCH_TABLE_REG,
+      Address(THR, target::Thread::dispatch_table_array_offset()));
 }
 
 void Assembler::LoadIsolate(Register rd) {
@@ -2526,24 +2518,16 @@ void Assembler::PushNativeCalleeSavedRegisters() {
   PushList(kAbiPreservedCpuRegs);
 
   const DRegister firstd = EvenDRegisterOf(kAbiFirstPreservedFpuReg);
-  if (TargetCPUFeatures::vfp_supported()) {
     ASSERT(2 * kAbiPreservedFpuRegCount < 16);
     // Save FPU registers. 2 D registers per Q register.
     vstmd(DB_W, SP, firstd, 2 * kAbiPreservedFpuRegCount);
-  } else {
-    sub(SP, SP, Operand(kAbiPreservedFpuRegCount * kFpuRegisterSize));
-  }
 }
 
 void Assembler::PopNativeCalleeSavedRegisters() {
   const DRegister firstd = EvenDRegisterOf(kAbiFirstPreservedFpuReg);
   // Restore C++ ABI callee-saved registers.
-  if (TargetCPUFeatures::vfp_supported()) {
-    // Restore FPU registers. 2 D registers per Q register.
-    vldmd(IA_W, SP, firstd, 2 * kAbiPreservedFpuRegCount);
-  } else {
-    AddImmediate(SP, kAbiPreservedFpuRegCount * kFpuRegisterSize);
-  }
+  // Restore FPU registers. 2 D registers per Q register.
+  vldmd(IA_W, SP, firstd, 2 * kAbiPreservedFpuRegCount);
   // Restore CPU registers.
   PopList(kAbiPreservedCpuRegs);
 }
@@ -3000,17 +2984,8 @@ void Assembler::CopyDoubleField(Register dst,
                                 Register tmp1,
                                 Register tmp2,
                                 DRegister dtmp) {
-  if (TargetCPUFeatures::vfp_supported()) {
     LoadDFromOffset(dtmp, src, target::Double::value_offset() - kHeapObjectTag);
     StoreDToOffset(dtmp, dst, target::Double::value_offset() - kHeapObjectTag);
-  } else {
-    LoadFieldFromOffset(tmp1, src, target::Double::value_offset());
-    LoadFieldFromOffset(tmp2, src,
-                        target::Double::value_offset() + target::kWordSize);
-    StoreFieldToOffset(tmp1, dst, target::Double::value_offset());
-    StoreFieldToOffset(tmp2, dst,
-                       target::Double::value_offset() + target::kWordSize);
-  }
 }
 
 void Assembler::CopyFloat32x4Field(Register dst,
@@ -3215,7 +3190,6 @@ void Assembler::IntegerDivide(Register result,
   if (TargetCPUFeatures::integer_division_supported()) {
     sdiv(result, left, right);
   } else {
-    ASSERT(TargetCPUFeatures::vfp_supported());
     SRegister stmpl = EvenSRegisterOf(tmpl);
     SRegister stmpr = EvenSRegisterOf(tmpr);
     vmovsr(stmpl, left);
@@ -3298,7 +3272,6 @@ void Assembler::EnterCallRuntimeFrame(intptr_t frame_space) {
   COMPILE_ASSERT((kDartVolatileCpuRegs & (1 << PP)) == 0);
 
   // Preserve all volatile FPU registers.
-  if (TargetCPUFeatures::vfp_supported()) {
     DRegister firstv = EvenDRegisterOf(kDartFirstVolatileFpuReg);
     DRegister lastv = OddDRegisterOf(kDartLastVolatileFpuReg);
     if ((lastv - firstv + 1) >= 16) {
@@ -3308,7 +3281,6 @@ void Assembler::EnterCallRuntimeFrame(intptr_t frame_space) {
     } else {
       vstmd(DB_W, SP, firstv, lastv - firstv + 1);
     }
-  }
 
   ReserveAlignedFrameSpace(frame_space);
 }
@@ -3318,9 +3290,7 @@ void Assembler::LeaveCallRuntimeFrame() {
   // and ensure proper alignment of the stack frame.
   // We need to restore it before restoring registers.
   const intptr_t kPushedFpuRegisterSize =
-      TargetCPUFeatures::vfp_supported()
-          ? kDartVolatileFpuRegCount * kFpuRegisterSize
-          : 0;
+      kDartVolatileFpuRegCount * kFpuRegisterSize;
 
   COMPILE_ASSERT(PP < FP);
   COMPILE_ASSERT((kDartVolatileCpuRegs & (1 << PP)) == 0);
@@ -3331,7 +3301,6 @@ void Assembler::LeaveCallRuntimeFrame() {
   AddImmediate(SP, FP, -kPushedRegistersSize);
 
   // Restore all volatile FPU registers.
-  if (TargetCPUFeatures::vfp_supported()) {
     DRegister firstv = EvenDRegisterOf(kDartFirstVolatileFpuReg);
     DRegister lastv = OddDRegisterOf(kDartLastVolatileFpuReg);
     if ((lastv - firstv + 1) >= 16) {
@@ -3341,7 +3310,6 @@ void Assembler::LeaveCallRuntimeFrame() {
     } else {
       vldmd(IA_W, SP, firstv, lastv - firstv + 1);
     }
-  }
 
   // Restore volatile CPU registers.
   RESTORES_LR_FROM_FRAME(
@@ -3361,7 +3329,7 @@ void Assembler::EnterDartFrame(intptr_t frame_size, bool load_pool_pointer) {
   COMPILE_ASSERT(CODE_REG < FP);
   COMPILE_ASSERT(FP < LINK_REGISTER.code);
 
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     SPILLS_LR_TO_FRAME(
         EnterFrame((1 << PP) | (1 << CODE_REG) | (1 << FP) | (1 << LR), 0));
 
@@ -3391,7 +3359,7 @@ void Assembler::EnterOsrFrame(intptr_t extra_size) {
 }
 
 void Assembler::LeaveDartFrame() {
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     ldr(PP, Address(FP, target::frame_layout.saved_caller_pp_from_fp *
                             target::kWordSize));
   }
@@ -3403,7 +3371,7 @@ void Assembler::LeaveDartFrame() {
 }
 
 void Assembler::LeaveDartFrameAndReturn() {
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     ldr(PP, Address(FP, target::frame_layout.saved_caller_pp_from_fp *
                             target::kWordSize));
   }
@@ -3745,6 +3713,18 @@ void Assembler::LoadElementAddressForRegIndex(Register address,
   if (offset != 0) {
     AddImmediate(address, offset);
   }
+}
+
+void Assembler::LoadStaticFieldAddress(Register address,
+                                       Register field,
+                                       Register scratch) {
+  LoadCompressedFieldFromOffset(
+      scratch, field, target::Field::host_offset_or_field_id_offset());
+  const intptr_t field_table_offset =
+      compiler::target::Thread::field_table_values_offset();
+  LoadMemoryValue(address, THR, static_cast<int32_t>(field_table_offset));
+  add(address, address,
+      Operand(scratch, LSL, target::kWordSizeLog2 - kSmiTagShift));
 }
 
 void Assembler::LoadFieldAddressForRegOffset(Register address,

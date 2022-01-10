@@ -2,13 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.9
-
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, runTests;
-import 'package:front_end/src/fasta/builder/member_builder.dart';
+import 'package:front_end/src/fasta/source/source_member_builder.dart';
 import 'package:front_end/src/fasta/type_inference/type_inference_engine.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
@@ -40,17 +39,15 @@ class InferredVariableTypesDataComputer extends DataComputer<DartType> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<DartType>> actualMap,
-      {bool verbose}) {
-    MemberBuilderImpl memberBuilder =
-        lookupMemberBuilder(compilerResult, member);
+      {bool? verbose}) {
+    SourceMemberBuilder memberBuilder =
+        lookupMemberBuilder(testResultData.compilerResult, member)
+            as SourceMemberBuilder;
     member.accept(new InferredTypeArgumentDataExtractor(
-        compilerResult,
-        memberBuilder.dataForTesting.inferenceData.typeInferenceResult,
+        testResultData.compilerResult,
+        memberBuilder.dataForTesting!.inferenceData.typeInferenceResult,
         actualMap));
   }
 }
@@ -63,7 +60,7 @@ class InferredTypeArgumentDataExtractor extends CfeDataExtractor<DartType> {
       : super(compilerResult, actualMap);
 
   @override
-  DartType computeNodeValue(Id id, TreeNode node) {
+  DartType? computeNodeValue(Id id, TreeNode node) {
     if (node is VariableDeclaration || node is LocalFunction) {
       return typeInferenceResult.inferredVariableTypes[node];
     }
@@ -76,13 +73,13 @@ class _InferredVariableTypesDataInterpreter
   const _InferredVariableTypesDataInterpreter();
 
   @override
-  String getText(DartType actualData, [String indentation]) {
+  String getText(DartType actualData, [String? indentation]) {
     return typeToText(
         actualData, TypeRepresentation.analyzerNonNullableByDefault);
   }
 
   @override
-  String isAsExpected(DartType actualData, String expectedData) {
+  String? isAsExpected(DartType actualData, String? expectedData) {
     if (getText(actualData) == expectedData) {
       return null;
     } else {
@@ -91,5 +88,5 @@ class _InferredVariableTypesDataInterpreter
   }
 
   @override
-  bool isEmpty(DartType actualData) => actualData == null;
+  bool isEmpty(DartType? actualData) => actualData == null;
 }

@@ -560,22 +560,9 @@ void ConstantInstr::EmitMoveToLocation(FlowGraphCompiler* compiler,
       __ LoadObject(destination.reg(), value_);
     }
   } else if (destination.IsFpuRegister()) {
-    if (Utils::DoublesBitEqual(Double::Cast(value_).value(), 0.0)) {
-      __ xorps(destination.fpu_reg(), destination.fpu_reg());
-    } else {
-      ASSERT(tmp != kNoRegister);
-      __ LoadObject(tmp, value_);
-      __ movsd(destination.fpu_reg(),
-               compiler::FieldAddress(tmp, Double::value_offset()));
-    }
+    __ LoadDImmediate(destination.fpu_reg(), Double::Cast(value_).value());
   } else if (destination.IsDoubleStackSlot()) {
-    if (Utils::DoublesBitEqual(Double::Cast(value_).value(), 0.0)) {
-      __ xorps(FpuTMP, FpuTMP);
-    } else {
-      ASSERT(tmp != kNoRegister);
-      __ LoadObject(tmp, value_);
-      __ movsd(FpuTMP, compiler::FieldAddress(tmp, Double::value_offset()));
-    }
+    __ LoadDImmediate(FpuTMP, Double::Cast(value_).value());
     __ movsd(LocationToStackSlotAddress(destination), FpuTMP);
   } else {
     ASSERT(destination.IsStackSlot());
@@ -1037,7 +1024,7 @@ Condition TestSmiInstr::EmitComparisonCode(FlowGraphCompiler* compiler,
   Location right = locs()->in(1);
   if (right.IsConstant()) {
     ASSERT(right.constant().IsSmi());
-    const int64_t imm = static_cast<int64_t>(right.constant().ptr());
+    const int64_t imm = Smi::RawValue(Smi::Cast(right.constant()).Value());
     __ TestImmediate(left_reg, compiler::Immediate(imm),
                      compiler::kObjectBytes);
   } else {
@@ -1154,8 +1141,9 @@ void NativeCallInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   // Push the result place holder initialized to NULL.
   __ PushObject(Object::null_object());
 
-  // Pass a pointer to the first argument in RAX.
-  __ leaq(RAX, compiler::Address(RSP, ArgumentCount() * kWordSize));
+  // Pass a pointer to the first argument in R13 (we avoid using RAX here to
+  // simplify the stub code that will call native code).
+  __ leaq(R13, compiler::Address(RSP, ArgumentCount() * kWordSize));
 
   __ LoadImmediate(R10, compiler::Immediate(argc_tag));
   const Code* stub;
@@ -1240,7 +1228,24 @@ void FfiCallInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   }
 
   if (is_leaf_) {
+#if !defined(PRODUCT)
+    // Set the thread object's top_exit_frame_info and VMTag to enable the
+    // profiler to determine that thread is no longer executing Dart code.
+    __ movq(compiler::Address(
+                THR, compiler::target::Thread::top_exit_frame_info_offset()),
+            FPREG);
+    __ movq(compiler::Assembler::VMTagAddress(), target_address);
+#endif
+
     __ CallCFunction(target_address, /*restore_rsp=*/true);
+
+#if !defined(PRODUCT)
+    __ movq(compiler::Assembler::VMTagAddress(),
+            compiler::Immediate(compiler::target::Thread::vm_tag_dart_id()));
+    __ movq(compiler::Address(
+                THR, compiler::target::Thread::top_exit_frame_info_offset()),
+            compiler::Immediate(0));
+#endif
   } else {
     // We need to copy a dummy return address up into the dummy stack frame so
     // the stack walker will know which safepoint to use. RIP points to the
@@ -1292,7 +1297,7 @@ void FfiCallInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
     __ LeaveDartFrame(compiler::kRestoreCallerPP);
     // Restore the global object pool after returning from runtime (old space is
     // moving, so the GOP could have been relocated).
-    if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+    if (FLAG_precompiled_mode) {
       __ movq(PP, compiler::Address(THR, Thread::global_object_pool_offset()));
     }
     __ set_constant_pool_allowed(true);
@@ -1401,7 +1406,7 @@ void NativeEntryInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
                             kPcMarkerSlotFromFp * compiler::target::kWordSize),
           CODE_REG);
 
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     __ movq(PP,
             compiler::Address(
                 THR, compiler::target::Thread::global_object_pool_offset()));
@@ -2288,7 +2293,7 @@ void GuardFieldLengthInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
         offset_reg,
         compiler::FieldAddress(
             field_reg, Field::guarded_list_length_in_object_offset_offset()));
-    __ LoadCompressed(
+    __ LoadCompressedSmi(
         length_reg,
         compiler::FieldAddress(field_reg, Field::guarded_list_length_offset()));
 
@@ -3487,7 +3492,8 @@ static void EmitSmiShiftLeft(FlowGraphCompiler* compiler,
 
 static bool CanBeImmediate(const Object& constant) {
   return constant.IsSmi() &&
-         compiler::Immediate(static_cast<int64_t>(constant.ptr())).is_int32();
+         compiler::Immediate(Smi::RawValue(Smi::Cast(constant).Value()))
+             .is_int32();
 }
 
 static bool IsSmiValue(const Object& constant, intptr_t value) {
@@ -3620,7 +3626,7 @@ void BinarySmiOpInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   if (locs()->in(1).IsConstant()) {
     const Object& constant = locs()->in(1).constant();
     ASSERT(constant.IsSmi());
-    const int64_t imm = static_cast<int64_t>(constant.ptr());
+    const int64_t imm = Smi::RawValue(Smi::Cast(constant).Value());
     switch (op_kind()) {
       case Token::kADD: {
         __ AddImmediate(left, compiler::Immediate(imm), compiler::kObjectBytes);
@@ -4395,7 +4401,7 @@ LocationSummary* BoxInt64Instr::MakeLocationSummary(Zone* zone,
   const intptr_t kNumInputs = 1;
   const intptr_t kNumTemps = ValueFitsSmi() ? 0 : 1;
   // Shared slow path is used in BoxInt64Instr::EmitNativeCode in
-  // FLAG_use_bare_instructions mode and only after VM isolate stubs where
+  // precompiled mode and only after VM isolate stubs where
   // replaced with isolate-specific stubs.
   auto object_store = IsolateGroup::Current()->object_store();
   const bool stubs_in_vm_isolate =
@@ -4406,7 +4412,6 @@ LocationSummary* BoxInt64Instr::MakeLocationSummary(Zone* zone,
           ->untag()
           ->InVMIsolateHeap();
   const bool shared_slow_path_call = SlowPathSharingSupported(opt) &&
-                                     FLAG_use_bare_instructions &&
                                      !stubs_in_vm_isolate;
   LocationSummary* summary = new (zone) LocationSummary(
       zone, kNumInputs, kNumTemps,
@@ -5223,11 +5228,12 @@ void DoubleToIntegerInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   compiler->AddSlowPathCode(slow_path);
 
   if (recognized_kind() != MethodRecognizer::kDoubleToInteger) {
-    // In JIT mode VM knows target CPU features at compile time
-    // and can pick more optimal representation for DoubleToDouble
-    // conversion. In AOT mode we test if roundsd instruction is
-    // available at run time and fall back to stub if it isn't.
-    ASSERT(CompilerState::Current().is_aot());
+    // In JIT mode without --target-unknown-cpu VM knows target CPU features
+    // at compile time and can pick more optimal representation
+    // for DoubleToDouble conversion. In AOT mode and with
+    // --target-unknown-cpu we test if roundsd instruction is available
+    // at run time and fall back to stub if it isn't.
+    ASSERT(CompilerState::Current().is_aot() || FLAG_target_unknown_cpu);
     if (FLAG_use_slow_path) {
       __ jmp(slow_path->entry_label());
       __ Bind(slow_path->exit_label());
@@ -5419,13 +5425,11 @@ static void InvokeDoublePow(FlowGraphCompiler* compiler,
   XmmRegister base = locs->in(0).fpu_reg();
   XmmRegister exp = locs->in(1).fpu_reg();
   XmmRegister result = locs->out(0).fpu_reg();
-  Register temp = locs->temp(InvokeMathCFunctionInstr::kObjectTempIndex).reg();
   XmmRegister zero_temp =
       locs->temp(InvokeMathCFunctionInstr::kDoubleTempIndex).fpu_reg();
 
   __ xorps(zero_temp, zero_temp);
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(1)));
-  __ movsd(result, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(result, 1.0);
 
   compiler::Label check_base, skip_call;
   // exponent == 0.0 -> return 1.0;
@@ -5439,15 +5443,13 @@ static void InvokeDoublePow(FlowGraphCompiler* compiler,
   __ j(EQUAL, &return_base, compiler::Assembler::kNearJump);
 
   // exponent == 2.0 ?
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(2.0)));
-  __ movsd(XMM0, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(XMM0, 2.0);
   __ comisd(exp, XMM0);
   compiler::Label return_base_times_2;
   __ j(EQUAL, &return_base_times_2, compiler::Assembler::kNearJump);
 
   // exponent == 3.0 ?
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(3.0)));
-  __ movsd(XMM0, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(XMM0, 3.0);
   __ comisd(exp, XMM0);
   __ j(NOT_EQUAL, &check_base);
 
@@ -5481,22 +5483,19 @@ static void InvokeDoublePow(FlowGraphCompiler* compiler,
   __ j(PARITY_ODD, &try_sqrt, compiler::Assembler::kNearJump);
   // Return NaN.
   __ Bind(&return_nan);
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(NAN)));
-  __ movsd(result, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(result, NAN);
   __ jmp(&skip_call);
 
   compiler::Label do_pow, return_zero;
   __ Bind(&try_sqrt);
   // Before calling pow, check if we could use sqrt instead of pow.
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(kNegInfinity)));
-  __ movsd(result, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(result, kNegInfinity);
   // base == -Infinity -> call pow;
   __ comisd(base, result);
   __ j(EQUAL, &do_pow, compiler::Assembler::kNearJump);
 
   // exponent == 0.5 ?
-  __ LoadObject(temp, Double::ZoneHandle(Double::NewCanonical(0.5)));
-  __ movsd(result, compiler::FieldAddress(temp, Double::value_offset()));
+  __ LoadDImmediate(result, 0.5);
   __ comisd(exp, result);
   __ j(NOT_EQUAL, &do_pow, compiler::Assembler::kNearJump);
 
@@ -6917,7 +6916,7 @@ void ClosureCallInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   __ LoadObject(R10, arguments_descriptor);
 
   ASSERT(locs()->in(0).reg() == RAX);
-  if (FLAG_precompiled_mode && FLAG_use_bare_instructions) {
+  if (FLAG_precompiled_mode) {
     // RAX: Closure with cached entry point.
     __ movq(RCX, compiler::FieldAddress(
                      RAX, compiler::target::Closure::entry_point_offset()));

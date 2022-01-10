@@ -61,6 +61,8 @@ enum XmmRegister {
 // Architecture independent aliases.
 typedef XmmRegister FpuRegister;
 const FpuRegister FpuTMP = XMM7;
+const int kFpuRegisterSize = 16;
+typedef simd128_value_t fpu_register_t;
 const int kNumberOfFpuRegisters = kNumberOfXmmRegisters;
 const FpuRegister kNoFpuRegister = kNoXmmRegister;
 
@@ -148,8 +150,15 @@ struct AssertAssignableStubABI {
 
 // ABI for InitStaticFieldStub.
 struct InitStaticFieldABI {
-  static const Register kFieldReg = EAX;
+  static const Register kFieldReg = EDX;
   static const Register kResultReg = EAX;
+};
+
+// Registers used inside the implementation of InitLateStaticFieldStub.
+struct InitLateStaticFieldInternalRegs {
+  static const Register kFunctionReg = EAX;
+  static const Register kAddressReg = ECX;
+  static const Register kScratchReg = EDI;
 };
 
 // ABI for InitInstanceFieldStub.

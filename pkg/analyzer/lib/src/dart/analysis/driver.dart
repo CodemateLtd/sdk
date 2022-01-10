@@ -9,11 +9,11 @@ import 'package:analyzer/dart/analysis/analysis_context.dart' as api;
 import 'package:analyzer/dart/analysis/declared_variables.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/error/error.dart';
 import 'package:analyzer/error/listener.dart';
 import 'package:analyzer/exception/exception.dart';
 import 'package:analyzer/file_system/file_system.dart';
-import 'package:analyzer/src/context/context_root.dart';
 import 'package:analyzer/src/context/packages.dart';
 import 'package:analyzer/src/dart/analysis/byte_store.dart';
 import 'package:analyzer/src/dart/analysis/feature_set_provider.dart';
@@ -82,7 +82,7 @@ import 'package:meta/meta.dart';
 /// TODO(scheglov) Clean up the list of implicitly analyzed files.
 class AnalysisDriver implements AnalysisDriverGeneric {
   /// The version of data format, should be incremented on every format change.
-  static const int DATA_VERSION = 190;
+  static const int DATA_VERSION = 196;
 
   /// The number of exception contexts allowed to write. Once this field is
   /// zero, we stop writing any new exception contexts in this process.
@@ -242,42 +242,7 @@ class AnalysisDriver implements AnalysisDriverGeneric {
   ///
   /// The given [SourceFactory] is cloned to ensure that it does not contain a
   /// reference to a [AnalysisContext] in which it could have been used.
-  @Deprecated('Use AnalysisDriver.tmp1() instead')
-  factory AnalysisDriver(
-    AnalysisDriverScheduler scheduler,
-    PerformanceLog logger,
-    ResourceProvider resourceProvider,
-    ByteStore byteStore,
-    // ignore: avoid_unused_constructor_parameters
-    FileContentOverlay? contentOverlay,
-    // ignore: avoid_unused_constructor_parameters
-    ContextRoot? contextRoot,
-    SourceFactory sourceFactory,
-    AnalysisOptionsImpl analysisOptions, {
-    Packages? packages,
-    bool enableIndex = false,
-    SummaryDataStore? externalSummaries,
-    bool retainDataForTesting = false,
-  }) {
-    return AnalysisDriver.tmp1(
-      scheduler: scheduler,
-      logger: logger,
-      resourceProvider: resourceProvider,
-      byteStore: byteStore,
-      sourceFactory: sourceFactory,
-      analysisOptions: analysisOptions,
-      packages: packages ?? Packages.empty,
-      enableIndex: enableIndex,
-      externalSummaries: externalSummaries,
-      retainDataForTesting: retainDataForTesting,
-    );
-  }
-
-  /// Create a new instance of [AnalysisDriver].
-  ///
-  /// The given [SourceFactory] is cloned to ensure that it does not contain a
-  /// reference to a [AnalysisContext] in which it could have been used.
-  AnalysisDriver.tmp1({
+  AnalysisDriver({
     required AnalysisDriverScheduler scheduler,
     required PerformanceLog logger,
     required ResourceProvider resourceProvider,
@@ -307,6 +272,37 @@ class AnalysisDriver implements AnalysisDriverGeneric {
     _scheduler.add(this);
     _search = Search(this);
   }
+
+  /// Create a new instance of [AnalysisDriver].
+  ///
+  /// The given [SourceFactory] is cloned to ensure that it does not contain a
+  /// reference to a [AnalysisContext] in which it could have been used.
+  @Deprecated('Use the unnamed constructor instead')
+  AnalysisDriver.tmp1({
+    required AnalysisDriverScheduler scheduler,
+    required PerformanceLog logger,
+    required ResourceProvider resourceProvider,
+    required ByteStore byteStore,
+    required SourceFactory sourceFactory,
+    required AnalysisOptionsImpl analysisOptions,
+    required Packages packages,
+    FileContentCache? fileContentCache,
+    bool enableIndex = false,
+    SummaryDataStore? externalSummaries,
+    bool retainDataForTesting = false,
+  }) : this(
+          scheduler: scheduler,
+          logger: logger,
+          resourceProvider: resourceProvider,
+          byteStore: byteStore,
+          sourceFactory: sourceFactory,
+          analysisOptions: analysisOptions,
+          packages: packages,
+          fileContentCache: fileContentCache,
+          enableIndex: enableIndex,
+          externalSummaries: externalSummaries,
+          retainDataForTesting: retainDataForTesting,
+        );
 
   /// Return the set of files explicitly added to analysis using [addFile].
   Set<String> get addedFiles => _fileTracker.addedFiles;
@@ -688,6 +684,22 @@ class AnalysisDriver implements AnalysisDriverGeneric {
     return completer.future;
   }
 
+  /// Return [LibraryElementResult] for the given [file], or `null` if the
+  /// file is a part.
+  LibraryElement? getLibraryByFile(FileState file) {
+    if (file.isPart) {
+      return null;
+    }
+
+    var element = libraryContext.getLibraryElementIfReady(file.uriStr);
+    if (element != null) {
+      return element;
+    }
+
+    libraryContext.load2(file);
+    return libraryContext.getLibraryElement(file.uri);
+  }
+
   /// Return a [Future] that completes with [LibraryElementResult] for the given
   /// [uri], which is either resynthesized from the provided external summary
   /// store, or built for a file to which the given [uri] is resolved.
@@ -762,7 +774,7 @@ class AnalysisDriver implements AnalysisDriverGeneric {
       units.add(unitResult);
     }
 
-    return ParsedLibraryResultImpl(currentSession, path, file.uri, units);
+    return ParsedLibraryResultImpl(currentSession, units);
   }
 
   /// Return a [ParsedLibraryResult] for the library with the given [uri].
@@ -1276,6 +1288,7 @@ class AnalysisDriver implements AnalysisDriverGeneric {
       return;
     }
     if (file_paths.isDart(resourceProvider.pathContext, path)) {
+      _lastProducedSignatures.remove(path);
       _priorityResults.clear();
       _removePotentiallyAffectedLibraries(path);
       _fileTracker.removeFile(path);
@@ -1310,17 +1323,15 @@ class AnalysisDriver implements AnalysisDriverGeneric {
     var unitElement = libraryContext.computeUnitElement(library, file)
         as CompilationUnitElementImpl;
 
-    var analyzer = LibraryAnalyzer(
-        analysisOptions as AnalysisOptionsImpl,
-        declaredVariables,
-        sourceFactory,
-        libraryContext.analysisContext,
-        libraryContext.elementFactory.libraryOfUri2(library.uriStr),
-        libraryContext.analysisSession.inheritanceManager,
-        library,
-        testingData: testingData);
-
-    var analysisResult = analyzer.analyzeForCompletion(
+    var analysisResult = LibraryAnalyzer(
+      analysisOptions as AnalysisOptionsImpl,
+      declaredVariables,
+      sourceFactory,
+      libraryContext.elementFactory.libraryOfUri2(library.uriStr),
+      libraryContext.analysisSession.inheritanceManager,
+      library,
+      testingData: testingData,
+    ).analyzeForCompletion(
       file: file,
       offset: offset,
       unitElement: unitElement,
@@ -1328,6 +1339,7 @@ class AnalysisDriver implements AnalysisDriverGeneric {
     );
 
     return ResolvedForCompletionResultImpl(
+      analysisSession: currentSession,
       path: path,
       uri: file.uri,
       exists: file.exists,
@@ -1424,27 +1436,26 @@ class AnalysisDriver implements AnalysisDriverGeneric {
 
         libraryContext.load2(library!);
 
-        LibraryAnalyzer analyzer = LibraryAnalyzer(
-            analysisOptions as AnalysisOptionsImpl,
-            declaredVariables,
-            sourceFactory,
-            libraryContext.analysisContext,
-            libraryContext.elementFactory.libraryOfUri2(library.uriStr),
-            libraryContext.analysisSession.inheritanceManager,
-            library,
-            testingData: testingData);
-        Map<FileState, UnitAnalysisResult> results = analyzer.analyze();
+        var results = LibraryAnalyzer(
+          analysisOptions as AnalysisOptionsImpl,
+          declaredVariables,
+          sourceFactory,
+          libraryContext.elementFactory.libraryOfUri2(library.uriStr),
+          libraryContext.analysisSession.inheritanceManager,
+          library,
+          testingData: testingData,
+        ).analyze();
 
         late Uint8List bytes;
         late CompilationUnit resolvedUnit;
-        for (FileState unitFile in results.keys) {
-          UnitAnalysisResult unitResult = results[unitFile]!;
+        for (var unitResult in results) {
           var unitBytes =
               _serializeResolvedUnit(unitResult.unit, unitResult.errors);
-          String unitSignature = _getResolvedUnitSignature(library, unitFile);
+          String unitSignature =
+              _getResolvedUnitSignature(library, unitResult.file);
           String unitKey = _getResolvedUnitKey(unitSignature);
           _byteStore.put(unitKey, unitBytes);
-          if (unitFile == file) {
+          if (unitResult.file == file) {
             bytes = unitBytes;
             resolvedUnit = unitResult.unit;
           }
@@ -1496,21 +1507,19 @@ class AnalysisDriver implements AnalysisDriverGeneric {
       _testView.numOfAnalyzedLibraries++;
       libraryContext.load2(library);
 
-      LibraryAnalyzer analyzer = LibraryAnalyzer(
-          analysisOptions as AnalysisOptionsImpl,
-          declaredVariables,
-          sourceFactory,
-          libraryContext.analysisContext,
-          libraryContext.elementFactory.libraryOfUri2(library.uriStr),
-          libraryContext.analysisSession.inheritanceManager,
-          library,
-          testingData: testingData);
-      Map<FileState, UnitAnalysisResult> unitResults = analyzer.analyze();
+      var unitResults = LibraryAnalyzer(
+              analysisOptions as AnalysisOptionsImpl,
+              declaredVariables,
+              sourceFactory,
+              libraryContext.elementFactory.libraryOfUri2(library.uriStr),
+              libraryContext.analysisSession.inheritanceManager,
+              library,
+              testingData: testingData)
+          .analyze();
       var resolvedUnits = <ResolvedUnitResult>[];
 
-      for (var entry in unitResults.entries) {
-        var unitFile = entry.key;
-        var unitResult = entry.value;
+      for (var unitResult in unitResults) {
+        var unitFile = unitResult.file;
         resolvedUnits.add(
           ResolvedUnitResultImpl(
             currentSession,
@@ -1528,8 +1537,6 @@ class AnalysisDriver implements AnalysisDriverGeneric {
 
       return ResolvedLibraryResultImpl(
         currentSession,
-        library.path,
-        library.uri,
         resolvedUnits.first.libraryElement,
         resolvedUnits,
       );
@@ -1560,7 +1567,6 @@ class AnalysisDriver implements AnalysisDriverGeneric {
         file.uri,
         file.lineInfo,
         file.isPart,
-        library.transitiveSignature,
         element,
       );
     });
@@ -1763,15 +1769,16 @@ class AnalysisDriver implements AnalysisDriverGeneric {
   }
 
   void _removePotentiallyAffectedLibraries(String path) {
-    _logger.run('Invalidate affected by $path.', () {
-      _logger.writeln('Work in $name');
-      var affected = <FileState>{};
-      _fsState.collectAffected(path, affected);
-      _logger.writeln('Remove ${affected.length} libraries.');
-      _libraryContext?.elementFactory.removeLibraries(
-        affected.map((e) => e.uriStr).toSet(),
-      );
-    });
+    var affected = <FileState>{};
+    _fsState.collectAffected(path, affected);
+
+    for (var file in affected) {
+      file.invalidateLibraryCycle();
+    }
+
+    _libraryContext?.elementFactory.removeLibraries(
+      affected.map((e) => e.uriStr).toSet(),
+    );
   }
 
   void _reportException(String path, Object exception, StackTrace stackTrace) {

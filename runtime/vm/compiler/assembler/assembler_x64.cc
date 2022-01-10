@@ -184,7 +184,7 @@ void Assembler::TransitionGeneratedToNative(Register destination_address,
   }
 }
 
-void Assembler::ExitFullSafepoint() {
+void Assembler::ExitFullSafepoint(bool ignore_unwind_in_progress) {
   // We generate the same number of instructions whether or not the slow-path is
   // forced, for consistency with EnterFullSafepoint.
   Label done, slow_path;
@@ -209,7 +209,14 @@ void Assembler::ExitFullSafepoint() {
   }
 
   Bind(&slow_path);
-  movq(TMP, Address(THR, target::Thread::exit_safepoint_stub_offset()));
+  if (ignore_unwind_in_progress) {
+    movq(TMP,
+         Address(THR,
+                 target::Thread::
+                     exit_safepoint_ignore_unwind_in_progress_stub_offset()));
+  } else {
+    movq(TMP, Address(THR, target::Thread::exit_safepoint_stub_offset()));
+  }
   movq(TMP, FieldAddress(TMP, target::Code::entry_point_offset()));
 
   // Use call instead of CallCFunction to avoid having to clean up shadow space
@@ -220,10 +227,13 @@ void Assembler::ExitFullSafepoint() {
   Bind(&done);
 }
 
-void Assembler::TransitionNativeToGenerated(bool leave_safepoint) {
+void Assembler::TransitionNativeToGenerated(bool leave_safepoint,
+                                            bool ignore_unwind_in_progress) {
   if (leave_safepoint) {
-    ExitFullSafepoint();
+    ExitFullSafepoint(ignore_unwind_in_progress);
   } else {
+    // flag only makes sense if we are leaving safepoint
+    ASSERT(!ignore_unwind_in_progress);
 #if defined(DEBUG)
     // Ensure we've already left the safepoint.
     movq(TMP, Address(THR, target::Thread::safepoint_state_offset()));
@@ -1379,6 +1389,17 @@ void Assembler::MoveImmediate(const Address& dst, const Immediate& imm) {
   }
 }
 
+void Assembler::LoadDImmediate(FpuRegister dst, double immediate) {
+  int64_t bits = bit_cast<int64_t>(immediate);
+  if (bits == 0) {
+    xorps(dst, dst);
+  } else {
+    intptr_t index = FindImmediate(bits);
+    LoadUnboxedDouble(
+        dst, PP, target::ObjectPool::element_offset(index) - kHeapObjectTag);
+  }
+}
+
 void Assembler::LoadCompressed(Register dest, const Address& slot) {
 #if !defined(DART_COMPRESSED_POINTERS)
   movq(dest, slot);
@@ -1845,7 +1866,7 @@ static const RegisterSet kVolatileRegisterSet(
 void Assembler::EnterCallRuntimeFrame(intptr_t frame_space) {
   Comment("EnterCallRuntimeFrame");
   EnterFrame(0);
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     pushq(CODE_REG);
     pushq(PP);
   }
@@ -1939,7 +1960,7 @@ void Assembler::LoadPoolPointer(Register pp) {
 void Assembler::EnterDartFrame(intptr_t frame_size, Register new_pp) {
   ASSERT(!constant_pool_allowed());
   EnterFrame(0);
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     pushq(CODE_REG);
     pushq(PP);
     if (new_pp == kNoRegister) {
@@ -1956,7 +1977,7 @@ void Assembler::EnterDartFrame(intptr_t frame_size, Register new_pp) {
 
 void Assembler::LeaveDartFrame(RestorePP restore_pp) {
   // Restore caller's PP register that was pushed in EnterDartFrame.
-  if (!(FLAG_precompiled_mode && FLAG_use_bare_instructions)) {
+  if (!FLAG_precompiled_mode) {
     if (restore_pp == kRestoreCallerPP) {
       movq(PP, Address(RBP, (target::frame_layout.saved_caller_pp_from_fp *
                              target::kWordSize)));

@@ -388,9 +388,11 @@ class RangeErrorSlowPath : public ThrowErrorSlowPathCode {
 
 class LateInitializationErrorSlowPath : public ThrowErrorSlowPathCode {
  public:
-  explicit LateInitializationErrorSlowPath(LoadFieldInstr* instruction)
+  explicit LateInitializationErrorSlowPath(Instruction* instruction)
       : ThrowErrorSlowPathCode(instruction,
-                               kLateFieldNotInitializedErrorRuntimeEntry) {}
+                               kLateFieldNotInitializedErrorRuntimeEntry) {
+    ASSERT(instruction->IsLoadField() || instruction->IsLoadStaticField());
+  }
   virtual const char* name() { return "late initialization error"; }
 
   virtual intptr_t GetNumberOfArgumentsForRuntimeCall() {
@@ -401,6 +403,13 @@ class LateInitializationErrorSlowPath : public ThrowErrorSlowPathCode {
 
   virtual void EmitSharedStubCall(FlowGraphCompiler* compiler,
                                   bool save_fpu_registers);
+
+ private:
+  FieldPtr OriginalField() const {
+    return instruction()->IsLoadField()
+               ? instruction()->AsLoadField()->slot().field().Original()
+               : instruction()->AsLoadStaticField()->field().Original();
+  }
 };
 
 class FlowGraphCompiler : public ValueObject {
@@ -462,7 +471,6 @@ class FlowGraphCompiler : public ValueObject {
 
   static bool SupportsUnboxedDoubles();
   static bool SupportsUnboxedSimd128();
-  static bool SupportsHardwareDivision();
   static bool CanConvertInt64ToDouble();
 
   // Accessors.
@@ -488,6 +496,9 @@ class FlowGraphCompiler : public ValueObject {
 
   BlockEntryInstr* current_block() const { return current_block_; }
   void set_current_block(BlockEntryInstr* value) { current_block_ = value; }
+
+  Instruction* current_instruction() const { return current_instruction_; }
+
   static bool CanOptimize();
   bool CanOptimizeFunction() const;
   bool CanOSRFunction() const;
@@ -558,6 +569,8 @@ class FlowGraphCompiler : public ValueObject {
   void EmitPrologue();
 
   void VisitBlocks();
+
+  void EmitFunctionEntrySourcePositionDescriptorIfNeeded();
 
   // Bail out of the flow graph compiler. Does not return to the caller.
   void Bailout(const char* reason);
@@ -1140,8 +1153,6 @@ class FlowGraphCompiler : public ValueObject {
   void set_current_instruction(Instruction* current_instruction) {
     current_instruction_ = current_instruction;
   }
-
-  Instruction* current_instruction() { return current_instruction_; }
 
   void CompactBlock(BlockEntryInstr* block);
   void CompactBlocks();

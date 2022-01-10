@@ -51,6 +51,8 @@ class TestProject {
 
   final Map<String, dynamic> pubspec;
 
+  Process _process;
+
   TestProject(
       {String mainSrc,
       String analysisOptions,
@@ -91,25 +93,45 @@ dev_dependencies:
     file.deleteSync();
   }
 
-  void dispose() {
-    if (dir.existsSync()) {
-      dir.deleteSync(recursive: true);
+  Future<void> dispose() async {
+    _process?.kill();
+    await _process?.exitCode;
+    _process = null;
+    int deleteAttempts = 5;
+    while (dir.existsSync()) {
+      try {
+        dir.deleteSync(recursive: true);
+      } catch (e) {
+        if ((--deleteAttempts) <= 0) {
+          rethrow;
+        }
+        await Future.delayed(Duration(milliseconds: 500));
+        print('Got $e while deleting $dir. Trying again...');
+      }
     }
   }
 
-  ProcessResult runSync(
+  Future<ProcessResult> run(
     List<String> arguments, {
     String workingDir,
-  }) {
-    return Process.runSync(
+  }) async {
+    _process = await Process.start(
         Platform.resolvedExecutable,
         [
           '--no-analytics',
           ...arguments,
         ],
         workingDirectory: workingDir ?? dir.path,
-        environment: {if (logAnalytics) '_DARTDEV_LOG_ANALYTICS': 'true'},
-        stdoutEncoding: utf8);
+        environment: {if (logAnalytics) '_DARTDEV_LOG_ANALYTICS': 'true'});
+    final stdoutContents = _process.stdout.transform(utf8.decoder).join();
+    final stderrContents = _process.stderr.transform(utf8.decoder).join();
+    final code = await _process.exitCode;
+    return ProcessResult(
+      _process.pid,
+      code,
+      await stdoutContents,
+      await stderrContents,
+    );
   }
 
   Future<Process> start(
@@ -123,7 +145,8 @@ dev_dependencies:
           ...arguments,
         ],
         workingDirectory: workingDir ?? dir.path,
-        environment: {if (logAnalytics) '_DARTDEV_LOG_ANALYTICS': 'true'});
+        environment: {if (logAnalytics) '_DARTDEV_LOG_ANALYTICS': 'true'})
+      ..then((p) => _process = p);
   }
 
   String _sdkRootPath;

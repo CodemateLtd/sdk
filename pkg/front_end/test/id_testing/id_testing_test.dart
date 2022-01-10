@@ -2,21 +2,20 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.9
+import 'dart:io' show Directory, Platform;
 
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, StringDataInterpreter, runTests;
-import 'dart:io' show Directory, Platform;
 import 'package:front_end/src/fasta/messages.dart' show FormattedMessage;
 import 'package:front_end/src/testing/id_testing_helper.dart'
     show
         CfeDataExtractor,
-        InternalCompilerResult,
         DataComputer,
-        TestConfig,
-        defaultCfeConfig,
+        InternalCompilerResult,
+        TestResultData,
         createUriForFileName,
+        defaultCfeConfig,
         onFailure,
         runTestFor;
 import 'package:front_end/src/testing/id_testing_utils.dart';
@@ -42,33 +41,26 @@ class IdTestingDataComputer extends DataComputer<String> {
   const IdTestingDataComputer();
 
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    member.accept(new IdTestingDataExtractor(compilerResult, actualMap));
+      {bool? verbose}) {
+    member.accept(
+        new IdTestingDataExtractor(testResultData.compilerResult, actualMap));
   }
 
   @override
-  void computeClassData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Class cls,
+  void computeClassData(TestResultData testResultData, Class cls,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    new IdTestingDataExtractor(compilerResult, actualMap).computeForClass(cls);
+      {bool? verbose}) {
+    new IdTestingDataExtractor(testResultData.compilerResult, actualMap)
+        .computeForClass(cls);
   }
 
   @override
-  void computeLibraryData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Library library,
+  void computeLibraryData(TestResultData testResultData, Library library,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    new IdTestingDataExtractor(compilerResult, actualMap)
+      {bool? verbose}) {
+    new IdTestingDataExtractor(testResultData.compilerResult, actualMap)
         .computeForLibrary(library);
   }
 
@@ -76,8 +68,8 @@ class IdTestingDataComputer extends DataComputer<String> {
   bool get supportsErrors => true;
 
   @override
-  String computeErrorData(TestConfig config, InternalCompilerResult compiler,
-      Id id, List<FormattedMessage> errors) {
+  String computeErrorData(
+      TestResultData testResultData, Id id, List<FormattedMessage> errors) {
     return errorsToText(errors);
   }
 
@@ -106,7 +98,7 @@ class IdTestingDataExtractor extends CfeDataExtractor<String> {
 
   String computeMemberName(Member member) {
     if (member.enclosingClass != null) {
-      return '${computeClassName(member.enclosingClass)}.'
+      return '${computeClassName(member.enclosingClass!)}.'
           '${getMemberName(member)}';
     }
     return getMemberName(member);
@@ -118,7 +110,7 @@ class IdTestingDataExtractor extends CfeDataExtractor<String> {
   }
 
   @override
-  String computeNodeValue(Id id, TreeNode node) {
+  String? computeNodeValue(Id id, TreeNode node) {
     if (node is FunctionDeclaration) {
       return '${computeMemberName(getEnclosingMember(node))}.'
           '${node.variable.name}';

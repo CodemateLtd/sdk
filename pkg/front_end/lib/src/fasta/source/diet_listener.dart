@@ -12,40 +12,26 @@ import 'package:_fe_analyzer_shared/src/parser/parser.dart'
         MemberKind,
         Parser,
         optional;
-
 import 'package:_fe_analyzer_shared/src/parser/quote.dart' show unescapeString;
-
 import 'package:_fe_analyzer_shared/src/parser/stack_listener.dart'
     show FixedNullableList, NullValue, ParserRecovery;
-
 import 'package:_fe_analyzer_shared/src/parser/value_kind.dart';
-
 import 'package:_fe_analyzer_shared/src/scanner/token.dart' show Token;
-
 import 'package:kernel/ast.dart';
-
 import 'package:kernel/class_hierarchy.dart' show ClassHierarchy;
-
 import 'package:kernel/core_types.dart' show CoreTypes;
 
 import '../builder/builder.dart';
 import '../builder/class_builder.dart';
 import '../builder/declaration_builder.dart';
-import '../builder/field_builder.dart';
 import '../builder/formal_parameter_builder.dart';
-import '../builder/function_builder.dart';
 import '../builder/function_type_builder.dart';
 import '../builder/metadata_builder.dart';
 import '../builder/modifier_builder.dart';
 import '../builder/type_alias_builder.dart';
 import '../builder/type_builder.dart';
-
-import '../identifiers.dart' show QualifiedName;
-
 import '../constant_context.dart' show ConstantContext;
-
 import '../crash.dart' show Crash;
-
 import '../fasta_codes.dart'
     show
         Code,
@@ -53,27 +39,20 @@ import '../fasta_codes.dart'
         Message,
         messageExpectedBlockToSkip,
         templateInternalProblemNotFound;
-
+import '../identifiers.dart' show QualifiedName;
 import '../ignored_parser_errors.dart' show isIgnoredParserError;
-
 import '../kernel/body_builder.dart' show BodyBuilder, FormalParameters;
-
 import '../problems.dart'
     show DebugAbort, internalProblem, unexpected, unhandled;
-
 import '../scope.dart';
-
 import '../source/value_kinds.dart';
-
 import '../type_inference/type_inference_engine.dart'
     show InferenceDataForTesting, TypeInferenceEngine;
-
 import '../type_inference/type_inferrer.dart' show TypeInferrer;
-
 import 'diet_parser.dart';
-
+import 'source_field_builder.dart';
+import 'source_function_builder.dart';
 import 'source_library_builder.dart' show SourceLibraryBuilder;
-
 import 'stack_listener_impl.dart';
 
 class DietListener extends StackListenerImpl {
@@ -176,6 +155,11 @@ class DietListener extends StackListenerImpl {
   }
 
   @override
+  void handleNoTypeNameInConstructorReference(Token token) {
+    debugEvent("NoTypeNameInConstructorReference");
+  }
+
+  @override
   void handleNoConstructorReferenceContinuationAfterTypeArguments(Token token) {
     debugEvent("NoConstructorReferenceContinuationAfterTypeArguments");
   }
@@ -212,8 +196,23 @@ class DietListener extends StackListenerImpl {
   }
 
   @override
+  void handleEnumWithClause(Token withKeyword) {
+    debugEvent("EnumWithClause");
+  }
+
+  @override
+  void handleEnumNoWithClause() {
+    debugEvent("EnumNoWithClause");
+  }
+
+  @override
   void endTypeArguments(int count, Token beginToken, Token endToken) {
     debugEvent("TypeArguments");
+  }
+
+  @override
+  void endArguments(int count, Token beginToken, Token endToken) {
+    debugEvent("Arguments");
   }
 
   @override
@@ -353,7 +352,7 @@ class DietListener extends StackListenerImpl {
 
     final BodyBuilder listener = createFunctionListener(
         lookupBuilder(beginToken, getOrSet, name as String)
-            as FunctionBuilderImpl);
+            as SourceFunctionBuilderImpl);
     buildFunctionBody(listener, bodyToken, metadata, MemberKind.TopLevelMethod);
   }
 
@@ -600,8 +599,8 @@ class DietListener extends StackListenerImpl {
     checkEmpty(beginToken.charOffset);
     if (name is ParserRecovery || currentClassIsParserRecovery) return;
 
-    FunctionBuilderImpl builder =
-        lookupConstructor(beginToken, name!) as FunctionBuilderImpl;
+    SourceFunctionBuilderImpl builder =
+        lookupConstructor(beginToken, name!) as SourceFunctionBuilderImpl;
     if (_inRedirectingFactory) {
       buildRedirectingFactoryMethod(
           bodyToken, builder, MemberKind.Factory, metadata);
@@ -710,12 +709,13 @@ class DietListener extends StackListenerImpl {
     Token? metadata = pop() as Token?;
     checkEmpty(beginToken.charOffset);
     if (name is ParserRecovery || currentClassIsParserRecovery) return;
-    FunctionBuilderImpl builder;
+    SourceFunctionBuilderImpl builder;
     if (isConstructor) {
-      builder = lookupConstructor(beginToken, name!) as FunctionBuilderImpl;
+      builder =
+          lookupConstructor(beginToken, name!) as SourceFunctionBuilderImpl;
     } else {
       builder = lookupBuilder(beginToken, getOrSet, name as String)
-          as FunctionBuilderImpl;
+          as SourceFunctionBuilderImpl;
     }
     buildFunctionBody(
         createFunctionListener(builder),
@@ -779,7 +779,7 @@ class DietListener extends StackListenerImpl {
       ..constantContext = constantContext;
   }
 
-  BodyBuilder createFunctionListener(FunctionBuilderImpl builder) {
+  BodyBuilder createFunctionListener(SourceFunctionBuilderImpl builder) {
     final Scope typeParameterScope =
         builder.computeTypeParameterScope(memberScope);
     final Scope formalParameterScope =
@@ -796,8 +796,8 @@ class DietListener extends StackListenerImpl {
         inferenceDataForTesting: builder.dataForTesting?.inferenceData);
   }
 
-  void buildRedirectingFactoryMethod(Token token, FunctionBuilderImpl builder,
-      MemberKind kind, Token? metadata) {
+  void buildRedirectingFactoryMethod(Token token,
+      SourceFunctionBuilderImpl builder, MemberKind kind, Token? metadata) {
     final BodyBuilder listener = createFunctionListener(builder);
     try {
       Parser parser = new Parser(listener,
@@ -898,7 +898,8 @@ class DietListener extends StackListenerImpl {
   }
 
   @override
-  void beginClassDeclaration(Token begin, Token? abstractToken, Token name) {
+  void beginClassDeclaration(
+      Token begin, Token? abstractToken, Token? macroToken, Token name) {
     debugEvent("beginClassDeclaration");
     push(begin);
   }
@@ -939,12 +940,103 @@ class DietListener extends StackListenerImpl {
   }
 
   @override
-  void endEnum(Token enumKeyword, Token leftBrace, int count) {
+  void beginEnum(Token enumKeyword) {
+    assert(checkState(enumKeyword, [ValueKinds.NameOrParserRecovery]));
     debugEvent("Enum");
-    const FixedNullableList<Object>().pop(stack, count * 2);
-    pop(); // Name.
-    pop(); // Annotations begin token.
+    Object? name = pop();
+
+    assert(currentDeclaration == null);
+    assert(memberScope == libraryBuilder.scope);
+
+    if (name is ParserRecovery) {
+      currentClassIsParserRecovery = true;
+      return;
+    }
+
+    currentDeclaration =
+        lookupBuilder(enumKeyword, null, name as String) as DeclarationBuilder;
+    memberScope = currentDeclaration!.scope;
+  }
+
+  @override
+  void endEnum(Token enumKeyword, Token leftBrace, int memberCount) {
+    debugEvent("Enum");
     checkEmpty(enumKeyword.charOffset);
+    currentDeclaration = null;
+    memberScope = libraryBuilder.scope;
+  }
+
+  @override
+  void handleEnumElement(Token beginKeyword) {
+    debugEvent("EnumElement");
+  }
+
+  @override
+  void handleEnumElements(Token elementsEndToken, int elementsCount) {
+    debugEvent("EnumElements");
+    const FixedNullableList<Object>().pop(stack, elementsCount * 2);
+    pop(); // Annotations begin token.
+    checkEmpty(elementsEndToken.charOffset);
+  }
+
+  @override
+  void handleEnumHeader(Token enumKeyword, Token leftBrace) {
+    debugEvent("EnumHeader");
+  }
+
+  @override
+  void endEnumConstructor(Token? getOrSet, Token beginToken, Token beginParam,
+      Token? beginInitializers, Token endToken) {
+    // TODO(chloestefantsova): Call endClassConstructor instead.
+    debugEvent("EnumConstructor");
+    pop(); // bodyToken
+    pop(); // name
+    pop(); // metadata
+    checkEmpty(beginToken.charOffset);
+    // Skip the declaration. An error as already been produced by the parser.
+  }
+
+  @override
+  void endEnumFactoryMethod(
+      Token beginToken, Token factoryKeyword, Token endToken) {
+    // TODO(chloestefantsova): Call endClassFactoryMethod instead.
+    debugEvent("EnumFactoryMethod");
+    pop(); // bodyToken
+    pop(); // name
+    pop(); // metadata
+    checkEmpty(beginToken.charOffset);
+    // Skip the declaration. An error as already been produced by the parser.
+  }
+
+  @override
+  void endEnumMethod(Token? getOrSet, Token beginToken, Token beginParam,
+      Token? beginInitializers, Token endToken) {
+    // TODO(chloestefantsova): Call endClassMethod instead.
+    debugEvent("EnumMethod");
+    pop(); // bodyToken
+    pop(); // name
+    pop(); // metadata
+    checkEmpty(beginToken.charOffset);
+    // Skip the declaration. An error as already been produced by the parser.
+  }
+
+  @override
+  void endEnumFields(
+      Token? abstractToken,
+      Token? externalToken,
+      Token? staticToken,
+      Token? covariantToken,
+      Token? lateToken,
+      Token? varFinalOrConst,
+      int count,
+      Token beginToken,
+      Token endToken) {
+    // TODO(chloestefantsova): Call endClassFields instead.
+    debugEvent("EnumFields");
+    const FixedNullableList<String>().pop(stack, count); // names
+    pop(); // metadata
+    checkEmpty(beginToken.charOffset);
+    // Skip the declaration. An error as already been produced by the parser.
   }
 
   @override

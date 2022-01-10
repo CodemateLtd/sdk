@@ -66,7 +66,6 @@ constexpr bool FLAG_support_il_printer = false;
     "Use --[no-]dwarf-stack-traces instead.")                                  \
   P(lazy_async_stacks, bool, true, "Reconstruct async stacks from listeners")  \
   P(lazy_dispatchers, bool, true, "Generate dispatchers lazily")               \
-  P(use_bare_instructions, bool, true, "Enable bare instructions mode.")       \
   R(dedup_instructions, true, bool, false,                                     \
     "Canonicalize instructions when precompiling.")
 
@@ -126,8 +125,6 @@ constexpr bool FLAG_support_il_printer = false;
   P(enable_ffi, bool, true, "Disable to make importing dart:ffi an error.")    \
   P(force_clone_compiler_objects, bool, false,                                 \
     "Force cloning of objects needed in compiler (ICData and Field).")         \
-  P(getter_setter_ratio, int, 13,                                              \
-    "Ratio of getter/setter usage used for double field unboxing heuristics")  \
   P(guess_icdata_cid, bool, true,                                              \
     "Artificially create type feedback for arithmetic etc. operations")        \
   P(huge_method_cutoff_in_tokens, int, 20000,                                  \
@@ -187,16 +184,16 @@ constexpr bool FLAG_support_il_printer = false;
   P(reorder_basic_blocks, bool, true, "Reorder basic blocks")                  \
   C(stress_async_stacks, false, false, bool, false,                            \
     "Stress test async stack traces")                                          \
-  P(use_table_dispatch, bool, true, "Enable dispatch table based calls.")      \
   P(retain_function_objects, bool, true,                                       \
     "Serialize function objects for all code objects even if not otherwise "   \
     "needed in the precompiled runtime.")                                      \
   P(retain_code_objects, bool, true,                                           \
     "Serialize all code objects even if not otherwise "                        \
     "needed in the precompiled runtime.")                                      \
-  P(enable_isolate_groups, bool, true, "Enable isolate group support.")        \
   P(show_invisible_frames, bool, false,                                        \
     "Show invisible frames in stack traces.")                                  \
+  P(target_unknown_cpu, bool, false,                                           \
+    "Generate code for a generic CPU, unknown at compile time")                \
   D(trace_cha, bool, false, "Trace CHA operations")                            \
   R(trace_field_guards, false, bool, false, "Trace changes in field's cids.")  \
   D(trace_ic, bool, false, "Trace IC handling")                                \
@@ -250,6 +247,7 @@ constexpr bool FLAG_support_il_printer = false;
   D(support_rr, bool, false, "Support running within RR.")                     \
   P(verify_entry_points, bool, false,                                          \
     "Throw API error on invalid member access throuh native API. See "         \
-    "entry_point_pragma.md")
+    "entry_point_pragma.md")                                                   \
+  C(branch_coverage, false, false, bool, false, "Enable branch coverage")
 
 #endif  // RUNTIME_VM_FLAG_LIST_H_

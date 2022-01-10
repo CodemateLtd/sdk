@@ -11,11 +11,11 @@ import 'data_driven_test.dart' as data_driven;
 import 'diagnostics/test_all.dart' as diagnostics;
 import 'element_matcher_test.dart' as element_matcher;
 import 'end_to_end_test.dart' as end_to_end;
-import 'flutter_bulk_test.dart' as flutter_bulk;
 import 'flutter_use_case_test.dart' as flutter_use_case;
 import 'modify_parameters_test.dart' as modify_parameters;
 import 'rename_parameter_test.dart' as rename_parameter;
 import 'rename_test.dart' as rename;
+import 'replaced_by_test.dart' as replaced_by;
 import 'sdk_fix_test.dart' as sdk_fix;
 import 'transform_override_set_parser_test.dart'
     as transform_override_set_parser;
@@ -31,11 +31,11 @@ void main() {
     diagnostics.main();
     element_matcher.main();
     end_to_end.main();
-    flutter_bulk.main();
     flutter_use_case.main();
     modify_parameters.main();
     rename_parameter.main();
     rename.main();
+    replaced_by.main();
     sdk_fix.main();
     transform_override_set_parser.main();
     transform_set_manager.main();

@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.9
-
 import 'dart:io' show Directory, Platform;
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
@@ -41,24 +39,19 @@ class StaticTypeDataComputer extends DataComputer<String> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Library library,
+  void computeLibraryData(TestResultData testResultData, Library library,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    new StaticTypeDataExtractor(compilerResult, actualMap)
+      {bool? verbose}) {
+    new StaticTypeDataExtractor(testResultData.compilerResult, actualMap)
         .computeForLibrary(library);
   }
 
   @override
-  void computeMemberData(
-      TestConfig config,
-      InternalCompilerResult compilerResult,
-      Member member,
+  void computeMemberData(TestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
-      {bool verbose}) {
-    member.accept(new StaticTypeDataExtractor(compilerResult, actualMap));
+      {bool? verbose}) {
+    member.accept(
+        new StaticTypeDataExtractor(testResultData.compilerResult, actualMap));
   }
 
   @override
@@ -67,12 +60,12 @@ class StaticTypeDataComputer extends DataComputer<String> {
 
 class StaticTypeDataExtractor extends CfeDataExtractor<String> {
   final TypeEnvironment _environment;
-  StaticTypeContext _staticTypeContext;
+  StaticTypeContext? _staticTypeContext;
 
   StaticTypeDataExtractor(InternalCompilerResult compilerResult,
       Map<Id, ActualData<String>> actualMap)
       : _environment = new TypeEnvironment(
-            compilerResult.coreTypes, compilerResult.classHierarchy),
+            compilerResult.coreTypes!, compilerResult.classHierarchy!),
         super(compilerResult, actualMap);
 
   @override
@@ -102,23 +95,23 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
   }
 
   @override
-  String computeMemberValue(Id id, Member node) {
+  String? computeMemberValue(Id id, Member node) {
     if (node is Procedure && node.function.futureValueType != null) {
-      return 'futureValueType=${typeToText(node.function.futureValueType)}';
+      return 'futureValueType=${typeToText(node.function.futureValueType!)}';
     }
     return null;
   }
 
   @override
-  String computeNodeValue(Id id, TreeNode node) {
+  String? computeNodeValue(Id id, TreeNode node) {
     if (isSkippedExpression(node)) {
       return null;
     }
     if (node is Expression) {
-      DartType type = node.getStaticType(_staticTypeContext);
+      DartType type = node.getStaticType(_staticTypeContext!);
       if (node is FunctionExpression && node.function.futureValueType != null) {
         return '${typeToText(type)},'
-            'futureValueType=${typeToText(node.function.futureValueType)}';
+            'futureValueType=${typeToText(node.function.futureValueType!)}';
       }
       return typeToText(type);
     } else if (node is Arguments) {
@@ -127,13 +120,13 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
       }
     } else if (node is ForInStatement) {
       if (id.kind == IdKind.current) {
-        DartType type = _staticTypeContext.typeEnvironment.forInElementType(
-            node, node.iterable.getStaticType(_staticTypeContext));
+        DartType type = _staticTypeContext!.typeEnvironment.forInElementType(
+            node, node.iterable.getStaticType(_staticTypeContext!));
         return typeToText(type);
       }
     } else if (node is FunctionDeclaration) {
       if (node.function.futureValueType != null) {
-        return 'futureValueType=${typeToText(node.function.futureValueType)}';
+        return 'futureValueType=${typeToText(node.function.futureValueType!)}';
       }
     }
     return null;
@@ -151,7 +144,7 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
 
   bool isNewReachabilityErrorArgument(object) {
     return object is StringLiteral &&
-        isNewReachabilityError(object.parent.parent);
+        isNewReachabilityError(object.parent!.parent);
   }
 
   bool isThrowReachabilityError(object) {

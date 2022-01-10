@@ -5,8 +5,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
-import 'package:path/path.dart' as path;
 import 'package:pedantic/pedantic.dart';
 import 'package:vm_service/vm_service.dart' as vm;
 
@@ -73,7 +73,6 @@ class DartTestDebugAdapter extends DartDebugAdapter<DartLaunchRequestArguments,
   /// breakpoints, and resume.
   Future<void> launchImpl() async {
     final args = this.args as DartLaunchRequestArguments;
-    final vmPath = Platform.resolvedExecutable;
     File? vmServiceInfoFile;
 
     final debug = !(args.noDebug ?? false);
@@ -84,6 +83,7 @@ class DartTestDebugAdapter extends DartDebugAdapter<DartLaunchRequestArguments,
     }
 
     final vmArgs = <String>[
+      ...?args.vmAdditionalArgs,
       if (debug) ...[
         '--enable-vm-service=${args.vmServicePort ?? 0}${ipv6 ? '/::1' : ''}',
         '--pause_isolates_on_start',
@@ -93,11 +93,8 @@ class DartTestDebugAdapter extends DartDebugAdapter<DartLaunchRequestArguments,
         '-DSILENT_OBSERVATORY=true',
         '--write-service-info=${Uri.file(vmServiceInfoFile.path)}'
       ],
-      // Default to asserts on, this seems like the most useful behaviour for
-      // editor-spawned debug sessions.
-      if (args.enableAsserts ?? true) '--enable-asserts',
       // TODO(dantup): This should be changed from "dart run test:test" to
-      // "dart test" once the started-paused flags are working correctly.
+      // "dart test" once the start-paused flags are working correctly.
       // Currently they start paused but do not write the vm-service-info file
       // to give us the VM-service URI.
       // https://github.com/dart-lang/sdk/issues/44200#issuecomment-726869539
@@ -111,6 +108,14 @@ class DartTestDebugAdapter extends DartDebugAdapter<DartLaunchRequestArguments,
       '-r',
       'json',
     ];
+
+    // Handle customTool and deletion of any arguments for it.
+    final executable = args.customTool ?? Platform.resolvedExecutable;
+    final removeArgs = args.customToolReplacesArgs;
+    if (args.customTool != null && removeArgs != null) {
+      vmArgs.removeRange(0, math.min(removeArgs, vmArgs.length));
+    }
+
     final processArgs = [
       ...vmArgs,
       ...?args.toolArgs,
@@ -118,25 +123,27 @@ class DartTestDebugAdapter extends DartDebugAdapter<DartLaunchRequestArguments,
       ...?args.args,
     ];
 
-    // Find the package_config file for this script.
-    // TODO(dantup): Remove this once
-    //   https://github.com/dart-lang/sdk/issues/45530 is done as it will not be
-    //   necessary.
-    var possibleRoot = path.isAbsolute(args.program)
-        ? path.dirname(args.program)
-        : path.dirname(path.normalize(path.join(args.cwd ?? '', args.program)));
-    final packageConfig = findPackageConfigFile(possibleRoot);
-    if (packageConfig != null) {
-      this.usePackageConfigFile(packageConfig);
-    }
-
-    // TODO(dantup): Support passing env to both of these.
-
-    logger?.call('Spawning $vmPath with $processArgs in ${args.cwd}');
-    final process = await Process.start(
-      vmPath,
+    await launchAsProcess(
+      executable,
       processArgs,
       workingDirectory: args.cwd,
+      env: args.env,
+    );
+  }
+
+  /// Launches the test script as a process controlled by the debug adapter.
+  Future<void> launchAsProcess(
+    String executable,
+    List<String> processArgs, {
+    required String? workingDirectory,
+    required Map<String, String>? env,
+  }) async {
+    logger?.call('Spawning $executable with $processArgs in $workingDirectory');
+    final process = await Process.start(
+      executable,
+      processArgs,
+      workingDirectory: workingDirectory,
+      environment: env,
     );
     _process = process;
     pidsToTerminate.add(process.pid);

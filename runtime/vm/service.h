@@ -15,7 +15,7 @@
 namespace dart {
 
 #define SERVICE_PROTOCOL_MAJOR_VERSION 3
-#define SERVICE_PROTOCOL_MINOR_VERSION 52
+#define SERVICE_PROTOCOL_MINOR_VERSION 55
 
 class Array;
 class EmbedderServiceHandler;
@@ -68,26 +68,30 @@ class RingServiceIdZone : public ServiceIdZone {
 
 class StreamInfo {
  public:
-  explicit StreamInfo(const char* id) : id_(id), enabled_(false) {}
+  explicit StreamInfo(const char* id)
+      : id_(id), enabled_(false), include_private_members_(false) {}
 
   const char* id() const { return id_; }
 
   void set_enabled(bool value) { enabled_ = value; }
   bool enabled() const { return enabled_; }
 
-  void set_consumer(Dart_NativeStreamConsumer consumer) {
-    callback_ = consumer;
+  void set_include_private_members(bool value) {
+    include_private_members_ = value;
   }
-  Dart_NativeStreamConsumer consumer() const { return callback_; }
+  bool include_private_members() const { return include_private_members_; }
 
  private:
   const char* id_;
   bool enabled_;
-  Dart_NativeStreamConsumer callback_;
+  bool include_private_members_;
 };
 
 class Service : public AllStatic {
  public:
+  static void Init();
+  static void Cleanup();
+
   // Handles a message which is not directed to an isolate.
   static ErrorPtr HandleRootMessage(const Array& message);
 
@@ -115,9 +119,6 @@ class Service : public AllStatic {
   static void SetEmbedderStreamCallbacks(
       Dart_ServiceStreamListenCallback listen_callback,
       Dart_ServiceStreamCancelCallback cancel_callback);
-
-  static void SetNativeServiceStreamCallback(Dart_NativeStreamConsumer consumer,
-                                             const char* stream_id);
 
   static void SetGetServiceAssetsCallback(
       Dart_GetVMServiceAssetsArchive get_service_assets);
@@ -161,6 +162,13 @@ class Service : public AllStatic {
                         const Instance& id,
                         const Error& error);
 
+  // Logs the size of the contents of `js` to FLAG_log_service_response_sizes.
+  static void LogResponseSize(const char* method, JSONStream* js);
+
+  // Enable/Disable timeline categories.
+  // Returns True if the categories were successfully enabled, False otherwise.
+  static bool EnableTimelineStreams(char* categories_list);
+
   // Well-known streams.
   static StreamInfo vm_stream;
   static StreamInfo isolate_stream;
@@ -173,7 +181,7 @@ class Service : public AllStatic {
   static StreamInfo timeline_stream;
   static StreamInfo profiler_stream;
 
-  static bool ListenStream(const char* stream_id);
+  static bool ListenStream(const char* stream_id, bool include_privates);
   static void CancelStream(const char* stream_id);
 
   static ObjectPtr RequestAssets();
@@ -247,6 +255,8 @@ class Service : public AllStatic {
   static Dart_ServiceStreamCancelCallback stream_cancel_callback_;
   static Dart_GetVMServiceAssetsArchive get_service_assets_callback_;
   static Dart_EmbedderInformationCallback embedder_information_callback_;
+
+  static void* service_response_size_log_file_;
 
   static const uint8_t* dart_library_kernel_;
   static intptr_t dart_library_kernel_len_;

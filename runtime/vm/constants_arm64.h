@@ -123,6 +123,8 @@ const VRegister VTMP = V31;
 // Architecture independent aliases.
 typedef VRegister FpuRegister;
 const FpuRegister FpuTMP = VTMP;
+const int kFpuRegisterSize = 16;
+typedef simd128_value_t fpu_register_t;
 const int kNumberOfFpuRegisters = kNumberOfVRegisters;
 const FpuRegister kNoFpuRegister = kNoVRegister;
 
@@ -251,8 +253,15 @@ struct AssertSubtypeABI {
 
 // ABI for InitStaticFieldStub.
 struct InitStaticFieldABI {
-  static const Register kFieldReg = R0;
+  static const Register kFieldReg = R2;
   static const Register kResultReg = R0;
+};
+
+// Registers used inside the implementation of InitLateStaticFieldStub.
+struct InitLateStaticFieldInternalRegs {
+  static const Register kFunctionReg = R0;
+  static const Register kAddressReg = R3;
+  static const Register kScratchReg = R4;
 };
 
 // ABI for InitInstanceFieldStub.

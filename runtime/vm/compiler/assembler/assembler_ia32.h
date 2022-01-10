@@ -819,9 +819,11 @@ class Assembler : public AssemblerBase {
                                    Register new_exit_frame,
                                    Register new_exit_through_ffi,
                                    bool enter_safepoint);
-  void TransitionNativeToGenerated(Register scratch, bool exit_safepoint);
+  void TransitionNativeToGenerated(Register scratch,
+                                   bool exit_safepoint,
+                                   bool ignore_unwind_in_progress = false);
   void EnterFullSafepoint(Register scratch);
-  void ExitFullSafepoint(Register scratch);
+  void ExitFullSafepoint(Register scratch, bool ignore_unwind_in_progress);
 
   // Create a frame for calling into runtime that preserves all volatile
   // registers.  Frame's RSP is guaranteed to be correctly aligned and
@@ -881,6 +883,18 @@ class Assembler : public AssemblerBase {
                                            Register array,
                                            Register index,
                                            intptr_t extra_disp = 0);
+
+  void LoadStaticFieldAddress(Register address,
+                              Register field,
+                              Register scratch) {
+    LoadCompressedFieldFromOffset(
+        scratch, field, target::Field::host_offset_or_field_id_offset());
+    const intptr_t field_table_offset =
+        compiler::target::Thread::field_table_values_offset();
+    LoadMemoryValue(address, THR, static_cast<int32_t>(field_table_offset));
+    static_assert(kSmiTagShift == 1, "adjust scale factor");
+    leal(address, Address(address, scratch, TIMES_HALF_WORD_SIZE, 0));
+  }
 
   void LoadCompressedFieldAddressForRegOffset(Register address,
                                               Register instance,

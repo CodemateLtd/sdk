@@ -11,6 +11,7 @@
 
 a
 abbreviations
+abi
 ability
 able
 abort
@@ -436,7 +437,6 @@ checker
 checking
 checkpoints
 checks
-chian
 child
 children
 choice
@@ -475,6 +475,7 @@ clients
 clone
 cloned
 cloner
+cloners
 clones
 cloning
 close
@@ -586,6 +587,7 @@ conform
 conformed
 confuse
 confused
+confusion
 conjunction
 connect
 connected
@@ -598,6 +600,7 @@ conservatively
 consider
 considered
 considers
+consist
 consistency
 consistent
 consistently
@@ -2045,6 +2048,7 @@ often
 ok
 old
 older
+omission
 omit
 omitted
 on

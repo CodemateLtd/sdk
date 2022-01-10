@@ -869,9 +869,6 @@ static void UpdateTypeTestCache(
         new_cache.WriteEntryToBuffer(zone, &buffer, colliding_index, "      ");
         THR_Print("%s\n", buffer.buffer());
       }
-      if (!FLAG_enable_isolate_groups) {
-        FATAL("Duplicate subtype test cache entry");
-      }
       if (old_result.ptr() != result.ptr()) {
         FATAL("Existing subtype test cache entry has result %s, not %s",
               old_result.ToCString(), result.ToCString());
@@ -1246,9 +1243,6 @@ DEFINE_RUNTIME_ENTRY(PatchStaticCall, 0) {
   const Code& target_code = Code::Handle(zone, target_function.EnsureHasCode());
   // Before patching verify that we are not repeatedly patching to the same
   // target.
-  ASSERT(FLAG_enable_isolate_groups ||
-         target_code.ptr() != CodePatcher::GetStaticCallTargetAt(
-                                  caller_frame->pc(), caller_code));
   if (target_code.ptr() !=
       CodePatcher::GetStaticCallTargetAt(caller_frame->pc(), caller_code)) {
     GcSafepointOperationScope safepoint(thread);
@@ -3018,10 +3012,6 @@ DEFINE_RUNTIME_ENTRY(FixCallersTarget, 0) {
         current_target_code.EntryPoint(),
         current_target_code.is_optimized() ? "optimized" : "unoptimized");
   }
-  // With isolate groups enabled, it is possible that the target code
-  // has been deactivated just now(as a result of re-optimizatin for example),
-  // which will result in another run through FixCallersTarget.
-  ASSERT(!current_target_code.IsDisabled() || FLAG_enable_isolate_groups);
   arguments.SetReturn(current_target_code);
 #else
   UNREACHABLE();
@@ -3618,10 +3608,46 @@ extern "C" void DFLRT_ExitSafepoint(NativeArguments __unusable_) {
   ASSERT(thread->top_exit_frame_info() != 0);
 
   ASSERT(thread->execution_state() == Thread::kThreadInVM);
+  if (thread->is_unwind_in_progress()) {
+    // Clean up safepoint unwind error marker to prevent safepoint tripping.
+    // The safepoint marker will get restored just before jumping back
+    // to generated code.
+    thread->SetUnwindErrorInProgress(false);
+    NoSafepointScope no_safepoint;
+    Error unwind_error;
+    unwind_error ^=
+        thread->isolate()->isolate_object_store()->preallocated_unwind_error();
+    Exceptions::PropagateError(unwind_error);
+  }
   thread->ExitSafepoint();
+
   TRACE_RUNTIME_CALL("%s", "ExitSafepoint done");
 }
 DEFINE_RAW_LEAF_RUNTIME_ENTRY(ExitSafepoint, 0, false, &DFLRT_ExitSafepoint);
+
+// This is expected to be invoked when jumping to destination frame,
+// during exception handling.
+extern "C" void DFLRT_ExitSafepointIgnoreUnwindInProgress(
+    NativeArguments __unusable_) {
+  CHECK_STACK_ALIGNMENT;
+  TRACE_RUNTIME_CALL("%s", "ExitSafepointIgnoreUnwindInProgress");
+  Thread* thread = Thread::Current();
+  ASSERT(thread->top_exit_frame_info() != 0);
+
+  ASSERT(thread->execution_state() == Thread::kThreadInVM);
+
+  // Compared to ExitSafepoint above we are going to ignore
+  // is_unwind_in_progress flag because this is called as part of JumpToFrame
+  // exception handler - we want this transition to complete so that the next
+  // safepoint check does error propagation.
+  thread->ExitSafepoint();
+
+  TRACE_RUNTIME_CALL("%s", "ExitSafepointIgnoreUnwindInProgress done");
+}
+DEFINE_RAW_LEAF_RUNTIME_ENTRY(ExitSafepointIgnoreUnwindInProgress,
+                              0,
+                              false,
+                              &DFLRT_ExitSafepointIgnoreUnwindInProgress);
 
 // Not registered as a runtime entry because we can't use Thread to look it up.
 static Thread* GetThreadForNativeCallback(uword callback_id,

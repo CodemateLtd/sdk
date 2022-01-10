@@ -37,14 +37,15 @@ import 'package:analyzer/src/error/getter_setter_types_verifier.dart';
 import 'package:analyzer/src/error/literal_element_verifier.dart';
 import 'package:analyzer/src/error/required_parameters_verifier.dart';
 import 'package:analyzer/src/error/return_type_verifier.dart';
+import 'package:analyzer/src/error/super_formal_parameters_verifier.dart';
 import 'package:analyzer/src/error/type_arguments_verifier.dart';
 import 'package:analyzer/src/error/use_result_verifier.dart';
 import 'package:analyzer/src/generated/element_resolver.dart';
 import 'package:analyzer/src/generated/engine.dart';
 import 'package:analyzer/src/generated/error_detection_helpers.dart';
-import 'package:analyzer/src/generated/java_engine.dart';
 import 'package:analyzer/src/generated/parser.dart' show ParserErrorCode;
 import 'package:analyzer/src/generated/this_access_tracker.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
 import 'package:collection/collection.dart';
 
 class EnclosingExecutableContext {
@@ -86,16 +87,7 @@ class EnclosingExecutableContext {
   EnclosingExecutableContext.empty() : this(null);
 
   String? get displayName {
-    final element = this.element;
-    if (element is ConstructorElement) {
-      var className = element.enclosingElement.displayName;
-      var constructorName = element.displayName;
-      return constructorName.isEmpty
-          ? className
-          : '$className.$constructorName';
-    } else {
-      return element?.displayName;
-    }
+    return element?.displayName;
   }
 
   bool get isClosure {
@@ -260,7 +252,7 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
         _requiredParametersVerifier = RequiredParametersVerifier(errorReporter),
         _duplicateDefinitionVerifier =
             DuplicateDefinitionVerifier(_currentLibrary, errorReporter) {
-    _isInSystemLibrary = _currentLibrary.source.isInSystemLibrary;
+    _isInSystemLibrary = _currentLibrary.source.uri.isScheme('dart');
     _isInCatchClause = false;
     _isInStaticVariableDeclaration = false;
     _isInConstructorInitializer = false;
@@ -1149,6 +1141,46 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
   }
 
   @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    super.visitSuperFormalParameter(node);
+
+    var constructor = node.parentFormalParameterList.parent;
+    if (!(constructor is ConstructorDeclaration &&
+        constructor.isNonRedirectingGenerative)) {
+      errorReporter.reportErrorForToken(
+        CompileTimeErrorCode.INVALID_SUPER_FORMAL_PARAMETER_LOCATION,
+        node.superKeyword,
+      );
+      return;
+    }
+
+    var element = node.declaredElement as SuperFormalParameterElementImpl;
+    var superParameter = element.superConstructorParameter;
+
+    if (superParameter == null) {
+      errorReporter.reportErrorForNode(
+        node.isNamed
+            ? CompileTimeErrorCode
+                .SUPER_FORMAL_PARAMETER_WITHOUT_ASSOCIATED_NAMED
+            : CompileTimeErrorCode
+                .SUPER_FORMAL_PARAMETER_WITHOUT_ASSOCIATED_POSITIONAL,
+        node.identifier,
+      );
+      return;
+    }
+
+    if (!_currentLibrary.typeSystem
+        .isSubtypeOf(element.type, superParameter.type)) {
+      errorReporter.reportErrorForNode(
+        CompileTimeErrorCode
+            .SUPER_FORMAL_PARAMETER_TYPE_IS_NOT_SUBTYPE_OF_ASSOCIATED,
+        node.identifier,
+        [element.type, superParameter.type],
+      );
+    }
+  }
+
+  @override
   void visitSwitchCase(SwitchCase node) {
     _withHiddenElements(node.statements, () {
       _duplicateDefinitionVerifier.checkStatements(node.statements);
@@ -1297,7 +1329,6 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
           CompileTimeErrorCode.IMPLEMENTS_REPEATED);
       _checkImplementsSuperClass(implementsClause);
       _checkMixinsSuperClass(withClause);
-      _checkMixinInference(node, withClause);
       _checkForMixinWithConflictingPrivateMember(withClause, superclass);
       _checkForConflictingGenerics(node);
       if (node is ClassDeclaration) {
@@ -1501,7 +1532,7 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
           conflictingMembers.map((e) => _getLibraryName(e)).toList();
       libraryNames.sort();
       errorReporter.reportErrorForNode(CompileTimeErrorCode.AMBIGUOUS_IMPORT,
-          node, [name, StringUtilities.printListOfQuotedNames(libraryNames)]);
+          node, [name, libraryNames.quotedAndCommaSeparatedWithAnd]);
     }
   }
 
@@ -1774,23 +1805,23 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
   }
 
   /// Verify all conflicts between type variable and enclosing class.
-  /// TODO(scheglov)
   void _checkForConflictingClassTypeVariableErrorCodes() {
-    for (TypeParameterElement typeParameter
-        in _enclosingClass!.typeParameters) {
+    var enclosingClass = _enclosingClass!;
+    for (TypeParameterElement typeParameter in enclosingClass.typeParameters) {
       String name = typeParameter.name;
       // name is same as the name of the enclosing class
-      if (_enclosingClass!.name == name) {
-        var code = _enclosingClass!.isMixin
+      if (enclosingClass.name == name) {
+        var code = enclosingClass.isMixin
             ? CompileTimeErrorCode.CONFLICTING_TYPE_VARIABLE_AND_MIXIN
             : CompileTimeErrorCode.CONFLICTING_TYPE_VARIABLE_AND_CLASS;
         errorReporter.reportErrorForElement(code, typeParameter, [name]);
       }
       // check members
-      if (_enclosingClass!.getMethod(name) != null ||
-          _enclosingClass!.getGetter(name) != null ||
-          _enclosingClass!.getSetter(name) != null) {
-        var code = _enclosingClass!.isMixin
+      if (enclosingClass.getNamedConstructor(name) != null ||
+          enclosingClass.getMethod(name) != null ||
+          enclosingClass.getGetter(name) != null ||
+          enclosingClass.getSetter(name) != null) {
+        var code = enclosingClass.isMixin
             ? CompileTimeErrorCode.CONFLICTING_TYPE_VARIABLE_AND_MEMBER_MIXIN
             : CompileTimeErrorCode.CONFLICTING_TYPE_VARIABLE_AND_MEMBER_CLASS;
         errorReporter.reportErrorForElement(code, typeParameter, [name]);
@@ -2259,6 +2290,26 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
 
     DartType iterableType = node.iterable.typeOrThrow;
 
+    Token? awaitKeyword;
+    var parent = node.parent;
+    if (parent is ForStatement) {
+      awaitKeyword = parent.awaitKeyword;
+    } else if (parent is ForElement) {
+      awaitKeyword = parent.awaitKeyword;
+    }
+
+    // Use an explicit string instead of [loopType] to remove the "<E>".
+    String loopNamedType = awaitKeyword != null ? 'Stream' : 'Iterable';
+
+    if (iterableType.isDynamic && typeSystem.strictCasts) {
+      errorReporter.reportErrorForNode(
+        CompileTimeErrorCode.FOR_IN_OF_INVALID_TYPE,
+        node.iterable,
+        [iterableType, loopNamedType],
+      );
+      return false;
+    }
+
     // TODO(scheglov) use NullableDereferenceVerifier
     if (_isNonNullableByDefault) {
       if (typeSystem.isNullable(iterableType)) {
@@ -2275,14 +2326,6 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
       return false;
     }
 
-    Token? awaitKeyword;
-    var parent = node.parent;
-    if (parent is ForStatement) {
-      awaitKeyword = parent.awaitKeyword;
-    } else if (parent is ForElement) {
-      awaitKeyword = parent.awaitKeyword;
-    }
-
     // The object being iterated has to implement Iterable<T> for some T that
     // is assignable to the variable's type.
     // TODO(rnystrom): Move this into mostSpecificTypeArgument()?
@@ -2297,8 +2340,6 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
     }
 
     if (!typeSystem.isAssignableTo(iterableType, requiredSequenceType)) {
-      // Use an explicit string instead of [loopType] to remove the "<E>".
-      String loopNamedType = awaitKeyword != null ? 'Stream' : 'Iterable';
       errorReporter.reportErrorForNode(
         CompileTimeErrorCode.FOR_IN_OF_INVALID_TYPE,
         node.iterable,
@@ -2496,7 +2537,7 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
     }
     // The SDK implementation may implement disallowed types. For example,
     // JSNumber in dart2js and _Smi in Dart VM both implement int.
-    if (_currentLibrary.source.isInSystemLibrary) {
+    if (_currentLibrary.source.uri.isScheme('dart')) {
       return false;
     }
     var type = namedType.type;
@@ -3178,6 +3219,10 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
   /// See [CompileTimeErrorCode.MIXIN_INHERITS_FROM_NOT_OBJECT].
   bool _checkForMixinInheritsNotFromObject(
       NamedType mixinName, ClassElement mixinElement) {
+    if (mixinElement.isEnum) {
+      return false;
+    }
+
     var mixinSupertype = mixinElement.supertype;
     if (mixinSupertype == null || mixinSupertype.isDartCoreObject) {
       var mixins = mixinElement.mixins;
@@ -4171,37 +4216,88 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
       return;
     }
     ClassElement superElement = superType.element;
+
     if (superElement.constructors
         .every((constructor) => constructor.isFactory)) {
       // Already reported [NO_GENERATIVE_CONSTRUCTORS_IN_SUPERCLASS].
       return;
     }
+
     var superUnnamedConstructor = superElement.unnamedConstructor;
     superUnnamedConstructor = superUnnamedConstructor != null
         ? _currentLibrary.toLegacyElementIfOptOut(superUnnamedConstructor)
         : superUnnamedConstructor;
-    if (superUnnamedConstructor != null) {
-      if (superUnnamedConstructor.isFactory) {
-        errorReporter.reportErrorForNode(
-            CompileTimeErrorCode.NON_GENERATIVE_CONSTRUCTOR,
-            constructor.returnType,
-            [superUnnamedConstructor]);
-      } else if (!superUnnamedConstructor.isDefaultConstructor) {
-        Identifier returnType = constructor.returnType;
-        var name = constructor.name;
-        int offset = returnType.offset;
-        int length = (name != null ? name.end : returnType.end) - offset;
-        errorReporter.reportErrorForOffset(
-            CompileTimeErrorCode.NO_DEFAULT_SUPER_CONSTRUCTOR_EXPLICIT,
-            offset,
-            length,
-            [superType]);
-      }
-    } else {
+    if (superUnnamedConstructor == null) {
       errorReporter.reportErrorForNode(
-          CompileTimeErrorCode.UNDEFINED_CONSTRUCTOR_IN_INITIALIZER_DEFAULT,
-          constructor.returnType,
-          [superElement.name]);
+        CompileTimeErrorCode.UNDEFINED_CONSTRUCTOR_IN_INITIALIZER_DEFAULT,
+        constructor.returnType,
+        [superElement.name],
+      );
+      return;
+    }
+
+    if (superUnnamedConstructor.isFactory) {
+      errorReporter.reportErrorForNode(
+        CompileTimeErrorCode.NON_GENERATIVE_CONSTRUCTOR,
+        constructor.returnType,
+        [superUnnamedConstructor],
+      );
+      return;
+    }
+
+    var requiredPositionalParameterCount = superUnnamedConstructor.parameters
+        .where((parameter) => parameter.isRequiredPositional)
+        .length;
+    var requiredNamedParameters = superUnnamedConstructor.parameters
+        .where((parameter) => parameter.isRequiredNamed)
+        .map((parameter) => parameter.name)
+        .toSet();
+
+    void reportError(ErrorCode errorCode, List<Object> arguments) {
+      Identifier returnType = constructor.returnType;
+      var name = constructor.name;
+      int offset = returnType.offset;
+      int length = (name != null ? name.end : returnType.end) - offset;
+      errorReporter.reportErrorForOffset(errorCode, offset, length, arguments);
+    }
+
+    if (!_currentLibrary.featureSet.isEnabled(Feature.super_parameters)) {
+      if (requiredPositionalParameterCount != 0 ||
+          requiredNamedParameters.isNotEmpty) {
+        reportError(
+          CompileTimeErrorCode.NO_DEFAULT_SUPER_CONSTRUCTOR_EXPLICIT,
+          [superType],
+        );
+      }
+      return;
+    }
+
+    var superParametersResult = verifySuperFormalParameters(
+      constructor: constructor,
+      errorReporter: errorReporter,
+    );
+    requiredNamedParameters.removeAll(
+      superParametersResult.namedArgumentNames,
+    );
+
+    if (requiredPositionalParameterCount >
+        superParametersResult.positionalArgumentCount) {
+      reportError(
+        CompileTimeErrorCode
+            .IMPLICIT_UNNAMED_SUPER_CONSTRUCTOR_INVOCATION_NOT_ENOUGH_POSITIONAL_ARGUMENTS,
+        [
+          superType,
+          requiredPositionalParameterCount,
+          superParametersResult.positionalArgumentCount,
+        ],
+      );
+    }
+    for (var requiredNamedParameterName in requiredNamedParameters) {
+      reportError(
+        CompileTimeErrorCode
+            .IMPLICIT_UNNAMED_SUPER_CONSTRUCTOR_INVOCATION_MISSING_REQUIRED_ARGUMENT,
+        [requiredNamedParameterName, superType],
+      );
     }
   }
 
@@ -4661,56 +4757,6 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
     }
   }
 
-  void _checkMixinInference(
-      NamedCompilationUnitMember node, WithClause? withClause) {
-    if (withClause == null) {
-      return;
-    }
-    var classElement = node.declaredElement as ClassElement;
-    var supertype = classElement.supertype;
-
-    var interfacesMerger = InterfacesMerger(typeSystem);
-    interfacesMerger.addWithSupertypes(supertype);
-
-    for (var namedType in withClause.mixinTypes2) {
-      var mixinType = namedType.type;
-      if (mixinType is InterfaceType) {
-        var mixinElement = mixinType.element;
-        if (namedType.typeArguments == null) {
-          var mixinSupertypeConstraints = typeSystem
-              .gatherMixinSupertypeConstraintsForInference(mixinElement);
-          if (mixinSupertypeConstraints.isNotEmpty) {
-            var matchingInterfaceTypes = _findInterfaceTypesForConstraints(
-              namedType,
-              mixinSupertypeConstraints,
-              interfacesMerger.typeList,
-            );
-            if (matchingInterfaceTypes != null) {
-              // Try to pattern match matchingInterfaceType against
-              // mixinSupertypeConstraint to find the correct set of type
-              // parameters to apply to the mixin.
-              var inferredTypeArguments = typeSystem.matchSupertypeConstraints(
-                mixinElement,
-                mixinSupertypeConstraints,
-                matchingInterfaceTypes,
-                genericMetadataIsEnabled: _currentLibrary.featureSet
-                    .isEnabled(Feature.generic_metadata),
-              );
-              if (inferredTypeArguments == null) {
-                errorReporter.reportErrorForToken(
-                    CompileTimeErrorCode
-                        .MIXIN_INFERENCE_NO_POSSIBLE_SUBSTITUTION,
-                    namedType.name.beginToken,
-                    [namedType]);
-              }
-            }
-          }
-        }
-        interfacesMerger.addWithSupertypes(mixinType);
-      }
-    }
-  }
-
   /// Checks the class for problems with the superclass, mixins, or implemented
   /// interfaces.
   void _checkMixinInheritance(MixinDeclaration node, OnClause? onClause,
@@ -4842,64 +4888,30 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
               parameterName ?? parameter,
             );
           }
-        } else if (defaultValuesAreExpected && parameter.defaultValue == null) {
-          var type = parameter.declaredElement!.type;
-          if (typeSystem.isPotentiallyNonNullable(type)) {
-            var parameterName = _parameterName(parameter);
-            errorReporter.reportErrorForNode(
-              CompileTimeErrorCode.MISSING_DEFAULT_VALUE_FOR_PARAMETER,
-              parameterName ?? parameter,
-              [parameterName?.name ?? '?'],
-            );
+        } else if (defaultValuesAreExpected) {
+          var parameterElement = parameter.declaredElement!;
+          if (!parameterElement.hasDefaultValue) {
+            var type = parameterElement.type;
+            if (typeSystem.isPotentiallyNonNullable(type)) {
+              var parameterName = _parameterName(parameter);
+              if (parameterElement.hasRequired) {
+                errorReporter.reportErrorForNode(
+                  CompileTimeErrorCode
+                      .MISSING_DEFAULT_VALUE_FOR_PARAMETER_WITH_ANNOTATION,
+                  parameterName ?? parameter,
+                );
+              } else {
+                errorReporter.reportErrorForNode(
+                  CompileTimeErrorCode.MISSING_DEFAULT_VALUE_FOR_PARAMETER,
+                  parameterName ?? parameter,
+                  [parameterName?.name ?? '?'],
+                );
+              }
+            }
           }
         }
       }
     }
-  }
-
-  InterfaceType? _findInterfaceTypeForMixin(NamedType mixin,
-      InterfaceType supertypeConstraint, List<InterfaceType> interfaceTypes) {
-    var element = supertypeConstraint.element;
-    InterfaceType? foundInterfaceType;
-    for (var interfaceType in interfaceTypes) {
-      if (interfaceType.element != element) continue;
-      if (foundInterfaceType == null) {
-        foundInterfaceType = interfaceType;
-      } else {
-        if (interfaceType != foundInterfaceType) {
-          errorReporter.reportErrorForToken(
-              CompileTimeErrorCode
-                  .MIXIN_INFERENCE_INCONSISTENT_MATCHING_CLASSES,
-              mixin.name.beginToken,
-              [mixin, supertypeConstraint]);
-        }
-      }
-    }
-    if (foundInterfaceType == null) {
-      errorReporter.reportErrorForToken(
-          CompileTimeErrorCode.MIXIN_INFERENCE_NO_MATCHING_CLASS,
-          mixin.name.beginToken,
-          [mixin, supertypeConstraint]);
-    }
-    return foundInterfaceType;
-  }
-
-  List<InterfaceType>? _findInterfaceTypesForConstraints(
-      NamedType mixin,
-      List<InterfaceType> supertypeConstraints,
-      List<InterfaceType> interfaceTypes) {
-    var result = <InterfaceType>[];
-    for (var constraint in supertypeConstraints) {
-      var interfaceType =
-          _findInterfaceTypeForMixin(mixin, constraint, interfaceTypes);
-      if (interfaceType == null) {
-        // No matching interface type found, so inference fails.  The error has
-        // already been reported.
-        return null;
-      }
-      result.add(interfaceType);
-    }
-    return result;
   }
 
   /// Given an [expression] in a switch case whose value is expected to be an
@@ -4920,11 +4932,11 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
   /// Return the name of the library that defines given [element].
   String _getLibraryName(Element? element) {
     if (element == null) {
-      return StringUtilities.EMPTY;
+      return '';
     }
     var library = element.library;
     if (library == null) {
-      return StringUtilities.EMPTY;
+      return '';
     }
     List<ImportElement> imports = _currentLibrary.imports;
     int count = imports.length;
@@ -4953,7 +4965,7 @@ class ErrorVerifier extends RecursiveAstVisitor<void>
       buffer.write(" (via ");
       if (indirectCount > 1) {
         indirectSources.sort();
-        buffer.write(StringUtilities.printListOfQuotedNames(indirectSources));
+        buffer.write(indirectSources.quotedAndCommaSeparatedWithAnd);
       } else {
         buffer.write(indirectSources[0]);
       }

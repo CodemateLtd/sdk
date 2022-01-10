@@ -4698,7 +4698,23 @@ class CompletionGetSuggestions2Params implements RequestParams {
   /// to true.
   int maxResults;
 
-  CompletionGetSuggestions2Params(this.file, this.offset, this.maxResults);
+  /// The mode of code completion being invoked. If no value is provided, BASIC
+  /// will be assumed. BASIC is also the only currently supported.
+  CompletionMode? completionMode;
+
+  /// The number of times that the user has invoked code completion at the same
+  /// code location, counting from 1. If no value is provided, 1 will be
+  /// assumed.
+  int? invocationCount;
+
+  /// The approximate time in milliseconds that the server should spend. The
+  /// server will perform some steps anyway, even if it takes longer than the
+  /// specified timeout. This field is intended to be used for benchmarking,
+  /// and usually should not be provided, so that the default timeout is used.
+  int? timeout;
+
+  CompletionGetSuggestions2Params(this.file, this.offset, this.maxResults,
+      {this.completionMode, this.invocationCount, this.timeout});
 
   factory CompletionGetSuggestions2Params.fromJson(
       JsonDecoder jsonDecoder, String jsonPath, Object? json) {
@@ -4723,7 +4739,24 @@ class CompletionGetSuggestions2Params implements RequestParams {
       } else {
         throw jsonDecoder.mismatch(jsonPath, 'maxResults');
       }
-      return CompletionGetSuggestions2Params(file, offset, maxResults);
+      CompletionMode? completionMode;
+      if (json.containsKey('completionMode')) {
+        completionMode = CompletionMode.fromJson(
+            jsonDecoder, jsonPath + '.completionMode', json['completionMode']);
+      }
+      int? invocationCount;
+      if (json.containsKey('invocationCount')) {
+        invocationCount = jsonDecoder.decodeInt(
+            jsonPath + '.invocationCount', json['invocationCount']);
+      }
+      int? timeout;
+      if (json.containsKey('timeout')) {
+        timeout = jsonDecoder.decodeInt(jsonPath + '.timeout', json['timeout']);
+      }
+      return CompletionGetSuggestions2Params(file, offset, maxResults,
+          completionMode: completionMode,
+          invocationCount: invocationCount,
+          timeout: timeout);
     } else {
       throw jsonDecoder.mismatch(
           jsonPath, 'completion.getSuggestions2 params', json);
@@ -4741,6 +4774,18 @@ class CompletionGetSuggestions2Params implements RequestParams {
     result['file'] = file;
     result['offset'] = offset;
     result['maxResults'] = maxResults;
+    var completionMode = this.completionMode;
+    if (completionMode != null) {
+      result['completionMode'] = completionMode.toJson();
+    }
+    var invocationCount = this.invocationCount;
+    if (invocationCount != null) {
+      result['invocationCount'] = invocationCount;
+    }
+    var timeout = this.timeout;
+    if (timeout != null) {
+      result['timeout'] = timeout;
+    }
     return result;
   }
 
@@ -4757,7 +4802,10 @@ class CompletionGetSuggestions2Params implements RequestParams {
     if (other is CompletionGetSuggestions2Params) {
       return file == other.file &&
           offset == other.offset &&
-          maxResults == other.maxResults;
+          maxResults == other.maxResults &&
+          completionMode == other.completionMode &&
+          invocationCount == other.invocationCount &&
+          timeout == other.timeout;
     }
     return false;
   }
@@ -4767,6 +4815,9 @@ class CompletionGetSuggestions2Params implements RequestParams {
         file,
         offset,
         maxResults,
+        completionMode,
+        invocationCount,
+        timeout,
       );
 }
 
@@ -5070,6 +5121,58 @@ class CompletionGetSuggestionsResult implements ResponseResult {
 
   @override
   int get hashCode => id.hashCode;
+}
+
+/// CompletionMode
+///
+/// enum {
+///   BASIC
+///   SMART
+/// }
+///
+/// Clients may not extend, implement or mix-in this class.
+class CompletionMode implements Enum {
+  /// Basic code completion invocation type, and the default for this
+  /// enumeration.
+  static const CompletionMode BASIC = CompletionMode._('BASIC');
+
+  /// Smart code completion, currently not implemented.
+  static const CompletionMode SMART = CompletionMode._('SMART');
+
+  /// A list containing all of the enum values that are defined.
+  static const List<CompletionMode> VALUES = <CompletionMode>[BASIC, SMART];
+
+  @override
+  final String name;
+
+  const CompletionMode._(this.name);
+
+  factory CompletionMode(String name) {
+    switch (name) {
+      case 'BASIC':
+        return BASIC;
+      case 'SMART':
+        return SMART;
+    }
+    throw Exception('Illegal enum value: $name');
+  }
+
+  factory CompletionMode.fromJson(
+      JsonDecoder jsonDecoder, String jsonPath, Object? json) {
+    if (json is String) {
+      try {
+        return CompletionMode(json);
+      } catch (_) {
+        // Fall through
+      }
+    }
+    throw jsonDecoder.mismatch(jsonPath, 'CompletionMode', json);
+  }
+
+  @override
+  String toString() => 'CompletionMode.$name';
+
+  String toJson() => name;
 }
 
 /// completion.registerLibraryPaths params
@@ -11547,7 +11650,7 @@ class FlutterWidgetPropertyValue implements HasToJson {
       double? doubleValue;
       if (json.containsKey('doubleValue')) {
         doubleValue = jsonDecoder.decodeDouble(
-            jsonPath + '.doubleValue', json['doubleValue']);
+            jsonPath + '.doubleValue', json['doubleValue'] as Object);
       }
       int? intValue;
       if (json.containsKey('intValue')) {
@@ -15613,6 +15716,91 @@ class SearchResultsParams implements HasToJson {
         results,
         isLast,
       );
+}
+
+/// server.cancelRequest params
+///
+/// {
+///   "id": String
+/// }
+///
+/// Clients may not extend, implement or mix-in this class.
+class ServerCancelRequestParams implements RequestParams {
+  /// The id of the request that should be cancelled.
+  String id;
+
+  ServerCancelRequestParams(this.id);
+
+  factory ServerCancelRequestParams.fromJson(
+      JsonDecoder jsonDecoder, String jsonPath, Object? json) {
+    json ??= {};
+    if (json is Map) {
+      String id;
+      if (json.containsKey('id')) {
+        id = jsonDecoder.decodeString(jsonPath + '.id', json['id']);
+      } else {
+        throw jsonDecoder.mismatch(jsonPath, 'id');
+      }
+      return ServerCancelRequestParams(id);
+    } else {
+      throw jsonDecoder.mismatch(jsonPath, 'server.cancelRequest params', json);
+    }
+  }
+
+  factory ServerCancelRequestParams.fromRequest(Request request) {
+    return ServerCancelRequestParams.fromJson(
+        RequestDecoder(request), 'params', request.params);
+  }
+
+  @override
+  Map<String, Object> toJson() {
+    var result = <String, Object>{};
+    result['id'] = id;
+    return result;
+  }
+
+  @override
+  Request toRequest(String id) {
+    return Request(id, 'server.cancelRequest', toJson());
+  }
+
+  @override
+  String toString() => json.encode(toJson());
+
+  @override
+  bool operator ==(other) {
+    if (other is ServerCancelRequestParams) {
+      return id == other.id;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+/// server.cancelRequest result
+///
+/// Clients may not extend, implement or mix-in this class.
+class ServerCancelRequestResult implements ResponseResult {
+  @override
+  Map<String, Object> toJson() => <String, Object>{};
+
+  @override
+  Response toResponse(String id) {
+    return Response(id, result: null);
+  }
+
+  @override
+  bool operator ==(other) {
+    if (other is ServerCancelRequestResult) {
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => 183255719;
 }
 
 /// server.connected params

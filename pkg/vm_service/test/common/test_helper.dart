@@ -335,13 +335,13 @@ class _ServiceTesterRunner {
       if (event.kind == EventKind.kIsolateRunnable) {
         print(event.isolate!.name);
         vm = await service.getVM();
-        //assert(vmIsolates.isNotEmpty);
         await subscription.cancel();
         await service.streamCancel(EventStreams.kIsolate);
         completer!.complete(event.isolate!);
         completer = null;
       }
     });
+    await service.streamListen(EventStreams.kIsolate);
 
     await service.streamListen(EventStreams.kIsolate);
 
