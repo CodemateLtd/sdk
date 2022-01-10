@@ -42,9 +42,11 @@
 ///
 /// Example:
 /// ```dart
-/// var encoded = utf8.encode("Îñţérñåţîöñåļîžåţîờñ");
-/// var decoded = utf8.decode([0x62, 0x6c, 0xc3, 0xa5, 0x62, 0xc3, 0xa6,
-///                            0x72, 0x67, 0x72, 0xc3, 0xb8, 0x64]);
+/// var encoded = utf8.encode('Îñţérñåţîöñåļîžåţîờñ');
+/// var decoded = utf8.decode([
+///   195, 142, 195, 177, 197, 163, 195, 169, 114, 195, 177, 195, 165, 197,
+///   163, 195, 174, 195, 182, 195, 177, 195, 165, 196, 188, 195, 174, 197,
+///   190, 195, 165, 197, 163, 195, 174, 225, 187, 157, 195, 177]);
 /// ```
 /// For more information see also [Utf8Encoder] and [Utf8Decoder].
 ///
@@ -54,7 +56,7 @@
 ///
 /// Example:
 /// ```dart
-/// var encoded = ascii.encode("This is ASCII!");
+/// var encoded = ascii.encode('This is ASCII!');
 /// var decoded = ascii.decode([0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73,
 ///                             0x20, 0x41, 0x53, 0x43, 0x49, 0x49, 0x21]);
 /// ```
@@ -71,7 +73,7 @@
 /// ```dart
 /// var encoded = base64.encode([0x62, 0x6c, 0xc3, 0xa5, 0x62, 0xc3, 0xa6,
 ///                              0x72, 0x67, 0x72, 0xc3, 0xb8, 0x64]);
-/// var decoded = base64.decode("YmzDpWLDpnJncsO4ZAo=");
+/// var decoded = base64.decode('YmzDpWLDpnJncsO4ZAo=');
 /// ```
 /// For more information see also [Base64Encoder] and [Base64Decoder].
 ///
@@ -83,7 +85,7 @@
 ///
 /// Example:
 /// ```dart
-/// var encoded = latin1.encode("blåbærgrød");
+/// var encoded = latin1.encode('blåbærgrød');
 /// var decoded = latin1.decode([0x62, 0x6c, 0xe5, 0x62, 0xe6,
 ///                              0x72, 0x67, 0x72, 0xf8, 0x64]);
 /// ```
